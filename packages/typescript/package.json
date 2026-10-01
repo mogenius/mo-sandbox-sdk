@@ -1,0 +1,64 @@
+{
+  "name": "@mogenius/sandbox",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for mogenius sandboxes — Daytona-compatible surface: swap the import, keep the code",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mogenius/mo-sandbox-sdk.git",
+    "directory": "packages/typescript"
+  },
+  "keywords": [
+    "mogenius",
+    "sandbox",
+    "agent-sandbox",
+    "daytona",
+    "kubernetes",
+    "ai-agents"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "build:check": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "lint": "eslint src test",
+    "lint:fix": "eslint src test --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "@types/node": "^24.13.4",
+    "@vitest/coverage-v8": "^3.2.4",
+    "eslint": "^10.10.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.6",
+    "prettier": "^3.8.2",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,54 @@
+# CLAUDE.md - mo-sandbox-sdk
+
+## Project Overview
+
+`mo-sandbox-sdk` holds the SDKs and API clients for mogenius sandboxes (epic MOG-4647). The public surface
+follows `@daytona/sdk` so a user swaps the import and keeps the code. Sandboxes are `SandboxClaim` /
+`Sandbox` objects of kubernetes-sigs/agent-sandbox; the platform API (`mo-platform-api-service`, module
+`mo-sandbox-nest`) and the operator do the work. This repo talks HTTP to the platform only.
+
+## Layout
+
+```
+packages/typescript/   @mogenius/sandbox — Mogenius, Sandbox, Process, errors
+openapi-specs/         planned: sandbox-api.json, toolbox.json (MOG-4698) → generated clients (MOG-4699)
+examples/              runnable with `npx tsx`, read .env
+```
+
+npm workspaces; run `npm install` at the root.
+
+## Commands
+
+```bash
+npm run build        # tsup, ESM + CJS + d.ts
+npm run test         # vitest
+npm run lint         # eslint (typescript-eslint, prettier)
+npm run format
+```
+
+## Rules
+
+- **Daytona names first.** Methods, parameters and error classes keep Daytona's names (`snapshot` = profile,
+  `target` = namespace, `autoDeleteInterval` = lifetime). mogenius-only additions are marked in the docs.
+- **No parallel structures.** Routes, DTO shapes and error codes come from the platform
+  (`@mogenius/client-sdk`, module `mo-sandbox`); mirror them, do not invent new ones here.
+- **Unsupported is explicit.** What Kubernetes pods cannot do throws `MogeniusUnsupportedError` with the
+  reason and the alternative; never silently degrade.
+- **Tests mock `fetch`** (`test/helpers.ts`), never the classes. Cover the request shape and the error
+  mapping for every new call.
+- Prettier: 120 columns, single quotes, trailing commas. ESM with `.js` import suffixes.
+- Git: never push or open PRs on your own; see the root CLAUDE.md of mogenius-ai-config.
+
+## Platform routes used
+
+| SDK                                   | Route                                                     |
+| ------------------------------------- | --------------------------------------------------------- |
+| `create()`                            | `POST /sandbox/:namespace`                                |
+| `list()`, `findOne()`                 | `GET /sandbox/:namespace?labels&state&limit&cursor`       |
+| `get()`, `refreshData()`              | `GET /sandbox/:namespace/:id`                             |
+| `setLabels()`, `setAutoDeleteInterval()` | `PATCH /sandbox/:namespace/:id`                        |
+| `start()`, `stop()`                   | `POST /sandbox/:namespace/:id/start` · `/stop`            |
+| `delete()`                            | `DELETE /sandbox/:namespace/:id`                          |
+| `process.executeCommand()`, `codeRun()` | `POST /sandbox/:namespace/:id/toolbox/process/execute`  |
+
+Headers: `authorization: Bearer <key>`, `organization-id`, `cluster-id`, optional `workspace-name`.

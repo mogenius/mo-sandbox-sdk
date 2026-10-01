@@ -1,0 +1,29 @@
+{
+  "name": "mo-sandbox-sdk",
+  "version": "0.0.0",
+  "private": true,
+  "description": "mogenius Sandbox SDKs and API clients — Daytona-compatible sandboxes on kubernetes-sigs/agent-sandbox",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mogenius/mo-sandbox-sdk.git"
+  },
+  "workspaces": [
+    "packages/typescript"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces",
+    "lint:fix": "npm run lint:fix --workspaces",
+    "format": "prettier --write \"packages/**/*.ts\" \"examples/**/*.ts\"",
+    "format:check": "prettier --check \"packages/**/*.ts\" \"examples/**/*.ts\"",
+    "validate": "npm run lint && npm run build && npm run test"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
