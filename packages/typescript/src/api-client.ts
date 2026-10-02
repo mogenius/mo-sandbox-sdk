@@ -1,6 +1,8 @@
 import { errorFromResponse, MogeniusError } from './errors.js';
 import type { ErrorBody, ResolvedConfig } from './types.js';
 
+type Query = Record<string, string | number | undefined>;
+
 /**
  * The HTTP layer under the SDK: one place for the platform's headers, JSON
  * handling and the error shape. Routes are the platform's `/sandbox/...`
@@ -13,23 +15,38 @@ export class ApiClient {
     return this.config.namespace;
   }
 
-  async get<T>(path: string, query?: Record<string, string | number | undefined>): Promise<T> {
+  async get<T>(path: string, query?: Query): Promise<T> {
     return this.request<T>('GET', path, query);
   }
 
-  async post<T>(path: string, body?: unknown): Promise<T> {
-    return this.request<T>('POST', path, undefined, body);
+  /** GET whose body is bytes, not JSON. */
+  async getBinary(path: string, query?: Query): Promise<Buffer> {
+    const response = await this.send('GET', path, query, undefined);
+    if (!response.ok) {
+      const parsed = parseJson(await response.text());
+      throw errorFromResponse(response.status, parsed as ErrorBody | null, `GET ${path} → HTTP ${response.status}`);
+    }
+    return Buffer.from(await response.arrayBuffer());
+  }
+
+  async post<T>(path: string, body?: unknown, query?: Query): Promise<T> {
+    return this.request<T>('POST', path, query, body);
+  }
+
+  /** Multipart POST; the form carries its own content type and boundary. */
+  async postForm<T>(path: string, form: FormData, query?: Query): Promise<T> {
+    return this.request<T>('POST', path, query, form);
   }
 
   async patch<T>(path: string, body?: unknown): Promise<T> {
     return this.request<T>('PATCH', path, undefined, body);
   }
 
-  async delete<T>(path: string): Promise<T> {
-    return this.request<T>('DELETE', path);
+  async delete<T>(path: string, query?: Query): Promise<T> {
+    return this.request<T>('DELETE', path, query);
   }
 
-  private headers(hasBody: boolean): Record<string, string> {
+  private headers(body: unknown): Record<string, string> {
     const headers: Record<string, string> = {
       authorization: `Bearer ${this.config.apiKey}`,
       accept: 'application/json',
@@ -44,46 +61,42 @@ export class ApiClient {
     if (this.config.workspaceName) {
       headers['workspace-name'] = this.config.workspaceName;
     }
-    if (hasBody) {
+    // a FormData body sets its own multipart content type with the boundary
+    if (body !== undefined && !(body instanceof FormData)) {
       headers['content-type'] = 'application/json';
     }
     return headers;
   }
 
-  private async request<T>(
-    method: string,
-    path: string,
-    query?: Record<string, string | number | undefined>,
-    body?: unknown,
-  ): Promise<T> {
+  private async request<T>(method: string, path: string, query?: Query, body?: unknown): Promise<T> {
+    const response = await this.send(method, path, query, body);
+    const parsed = parseJson(await response.text());
+    if (!response.ok) {
+      throw errorFromResponse(
+        response.status,
+        parsed as ErrorBody | null,
+        `${method} ${path} → HTTP ${response.status}`,
+      );
+    }
+    return parsed as T;
+  }
+
+  private async send(method: string, path: string, query?: Query, body?: unknown): Promise<Response> {
     const url = new URL(`${this.config.apiUrl}${path}`);
     for (const [key, value] of Object.entries(query ?? {})) {
       if (value !== undefined && value !== '') {
         url.searchParams.set(key, String(value));
       }
     }
-
-    let response: Response;
     try {
-      response = await this.config.fetch(url, {
+      return await this.config.fetch(url, {
         method,
-        headers: this.headers(body !== undefined),
-        body: body !== undefined ? JSON.stringify(body) : undefined,
+        headers: this.headers(body),
+        body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
       });
     } catch (err) {
       throw new MogeniusError(`${method} ${url.pathname} failed: ${(err as Error).message}`, { source: 'sdk' });
     }
-
-    const text = await response.text();
-    const parsed = parseJson(text);
-    if (!response.ok) {
-      throw errorFromResponse(
-        response.status,
-        parsed as ErrorBody | null,
-        `${method} ${url.pathname} → HTTP ${response.status}`,
-      );
-    }
-    return parsed as T;
   }
 }
 

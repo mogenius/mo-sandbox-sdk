@@ -68,10 +68,15 @@ export function errorFromResponse(status: number, body: ErrorBody | string | nul
     case 'SANDBOX_NOT_FOUND':
     case 'SANDBOX_CONTAINER_NOT_FOUND':
     case 'SANDBOX_PROFILE_NOT_FOUND':
+    case 'SANDBOX_FILE_NOT_FOUND':
       return new MogeniusNotFoundError(message, details);
     case 'SANDBOX_NOT_READY':
     case 'SANDBOX_ALREADY_EXISTS':
+    case 'SANDBOX_FILE_EXISTS':
+    case 'SANDBOX_FILE_NOT_EMPTY':
       return new MogeniusConflictError(message, details);
+    case 'SANDBOX_FILE_PERMISSION_DENIED':
+      return new MogeniusForbiddenError(message, details);
     case 'INVALID_REQUEST':
     case 'SANDBOX_ENV_NOT_ALLOWED':
       return new MogeniusValidationError(message, details);

@@ -1,5 +1,6 @@
 import type { ApiClient } from './api-client.js';
 import { MogeniusConflictError, MogeniusTimeoutError, MogeniusUnsupportedError } from './errors.js';
+import { FileSystem } from './file-system.js';
 import { Process } from './process.js';
 import type { CodeLanguage, ExecuteResponse, SandboxInfo, SandboxState } from './types.js';
 
@@ -11,10 +12,13 @@ const DEFAULT_WAIT_SECONDS = 60;
 /**
  * A handle to one sandbox: its current data plus the actions on it. The
  * fields mirror Daytona's `Sandbox`; `refreshData()` reloads them from the
- * platform. `process` runs commands and code inside.
+ * platform. `process` runs commands and code inside, `fs` reads and writes
+ * its files.
  */
 export class Sandbox {
   readonly process: Process;
+  /** Daytona's `FileSystem`: files inside the sandbox. */
+  readonly fs: FileSystem;
   private info: SandboxInfo;
 
   constructor(
@@ -24,6 +28,7 @@ export class Sandbox {
   ) {
     this.info = info;
     this.process = new Process(api, info.namespace, info.id, language);
+    this.fs = new FileSystem(api, info.namespace, info.id);
   }
 
   /*******************************************************************************************************************

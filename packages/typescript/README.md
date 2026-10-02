@@ -55,6 +55,37 @@ const ts = await sandbox.process.codeRun('console.log(42)', { language: 'typescr
 `executeCommand` is stateless: `cd` and `export` do not carry over. The default timeout is 10 seconds; the
 cluster caps the maximum (300 seconds by default).
 
+## Files
+
+`sandbox.fs` is Daytona's `FileSystem`. Paths are absolute inside the container or relative to its working
+directory (`/home/coder/project` in the default image).
+
+```ts
+await sandbox.fs.uploadFile(Buffer.from('print("hi")'), 'app.py');
+await sandbox.fs.uploadFiles([
+  { source: 'A=1', destination: 'config/.env' },
+  { source: Buffer.from(bytes), destination: '/tmp/blob.bin' },
+]);
+
+const entries = await sandbox.fs.listFiles(); // FileInfo[]: name, isDir, size, modTime, mode, owner, group
+const info = await sandbox.fs.getFileDetails('app.py');
+const data = await sandbox.fs.downloadFile('app.py'); // Buffer; a folder comes as .tar.gz
+
+await sandbox.fs.createFolder('out', '755');
+await sandbox.fs.moveFiles('app.py', 'out/app.py');
+await sandbox.fs.setFilePermissions('out/app.py', { mode: '600', owner: 'coder' });
+
+const { files } = await sandbox.fs.searchFiles('.', '*.py'); // glob on names
+const matches = await sandbox.fs.findFiles('.', 'import'); // grep: { file, line, content }[]
+const results = await sandbox.fs.replaceInFiles(['out/app.py'], 'hi', 'hello'); // literal, per file
+
+await sandbox.fs.deleteFile('out', true); // recursive; a non-empty folder without it is a conflict
+```
+
+The operator runs each operation inside the sandbox's container, so nothing is installed in the image for
+it. Uploads are limited to 100 MB per file. `uploadFile` takes a Buffer or string, not a local path: read the
+file yourself first.
+
 ## Errors
 
 Every error extends `MogeniusError` and carries `statusCode`, `errorCode` and `source` (`api`, `operator`

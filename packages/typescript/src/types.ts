@@ -176,3 +176,68 @@ export interface ErrorBody {
   message?: string | string[];
   error?: string;
 }
+
+/*********************************************************************************************************************
+ * files (Daytona's FileSystem types)
+ ********************************************************************************************************************/
+
+/** One file or folder. Daytona's `FileInfo`. */
+export interface FileInfo {
+  name: string;
+  /** mogenius only: absolute path inside the container. */
+  path: string;
+  isDir: boolean;
+  size: number;
+  /** ISO timestamp. */
+  modTime: string;
+  /** Octal, e.g. `0644`. */
+  mode: string;
+  /** `ls -l` style, e.g. `-rw-r--r--`. */
+  permissions: string;
+  owner: string;
+  group: string;
+  /** mogenius only: sniffed media type of a regular file. */
+  mimeType?: string;
+}
+
+/** One entry of `uploadFiles()`. Daytona's `FileUpload`, without local file paths as source. */
+export interface FileUpload {
+  source: Buffer | Uint8Array | string;
+  /** Destination path inside the container. */
+  destination: string;
+}
+
+export interface UploadResult {
+  path: string;
+  success: boolean;
+  error: string | null;
+}
+
+/** Daytona's `SearchFilesResponse`. */
+export interface SearchFilesResponse {
+  files: string[];
+  /** mogenius only: more matched than were returned. */
+  truncated: boolean;
+}
+
+/** One matching line of `findFiles()`. Daytona's `Match`. */
+export interface Match {
+  file: string;
+  line: number;
+  content: string;
+}
+
+/** Daytona's `ReplaceResult`. */
+export interface ReplaceResult {
+  file: string;
+  success: boolean;
+  error: string | null;
+}
+
+/** Daytona's `setFilePermissions` parameters. */
+export interface SetFilePermissionsParams {
+  /** Octal (`755`) or symbolic (`u+x`). */
+  mode?: string;
+  owner?: string;
+  group?: string;
+}

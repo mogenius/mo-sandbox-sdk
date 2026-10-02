@@ -10,7 +10,7 @@ follows `@daytona/sdk` so a user swaps the import and keeps the code. Sandboxes 
 ## Layout
 
 ```
-packages/typescript/   @mogenius/sandbox — Mogenius, Sandbox, Process, errors
+packages/typescript/   @mogenius/sandbox — Mogenius, Sandbox, Process, FileSystem, errors
 openapi-specs/         planned: sandbox-api.json, toolbox.json (MOG-4698) → generated clients (MOG-4699)
 examples/              runnable with `npx tsx`, read .env
 ```
@@ -50,5 +50,10 @@ npm run format
 | `start()`, `stop()`                   | `POST /sandbox/:namespace/:id/start` · `/stop`            |
 | `delete()`                            | `DELETE /sandbox/:namespace/:id`                          |
 | `process.executeCommand()`, `codeRun()` | `POST /sandbox/:namespace/:id/toolbox/process/execute`  |
+| `fs.listFiles()`, `fs.getFileDetails()` | `GET …/toolbox/files` · `…/files/info`                  |
+| `fs.downloadFile()`, `fs.uploadFile(s)()` | `GET …/toolbox/files/download` · `POST …/files/upload` |
+| `fs.createFolder()`, `fs.moveFiles()`, `fs.deleteFile()` | `POST …/files/folder` · `POST …/files/move` · `DELETE …/files` |
+| `fs.setFilePermissions()`             | `POST …/toolbox/files/permissions`                        |
+| `fs.searchFiles()`, `fs.findFiles()`, `fs.replaceInFiles()` | `GET …/files/search` · `GET …/files/find` · `POST …/files/replace` |
 
 Headers: `authorization: Bearer <key>`, `organization-id`, `cluster-id`, optional `workspace-name`.
