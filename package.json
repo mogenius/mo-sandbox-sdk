@@ -2,6 +2,7 @@
   "name": "mo-sandbox-sdk",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "description": "mogenius Sandbox SDKs and API clients — Daytona-compatible sandboxes on kubernetes-sigs/agent-sandbox",
   "license": "Apache-2.0",
   "repository": {

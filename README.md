@@ -45,7 +45,7 @@ npm run test
 npm run lint
 ```
 
-Examples live in [`examples/`](examples); copy `.env.example` to `.env` and run them with `npx tsx`.
+Examples live in [`examples/`](examples); copy `.env.example` to `.env`, load it into the shell (`set -a; . ./.env; set +a`) and run them with `node examples/<name>.ts` (Node 24) or `npx tsx examples/<name>.ts`. `node --env-file=.env` works too, but it does not override a `MOGENIUS_*` variable that the shell already exports.
 
 ## License
 
