@@ -234,6 +234,13 @@ export interface ReplaceResult {
   error: string | null;
 }
 
+/** mogenius only: the one-time URL behind a streamed download. */
+export interface DownloadLink {
+  url: string;
+  /** Seconds the link stays valid; it is spent on first use either way. */
+  expiresInSeconds: number;
+}
+
 /** Daytona's `setFilePermissions` parameters. */
 export interface SetFilePermissionsParams {
   /** Octal (`755`) or symbolic (`u+x`). */

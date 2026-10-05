@@ -33,6 +33,7 @@ export type {
   ExecutionArtifacts,
   Chart,
   CodeRunParams,
+  DownloadLink,
   ErrorBody,
   FileInfo,
   FileUpload,

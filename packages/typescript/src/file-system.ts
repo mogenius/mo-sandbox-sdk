@@ -1,6 +1,7 @@
 import type { ApiClient } from './api-client.js';
-import { MogeniusError } from './errors.js';
+import { MogeniusError, MogeniusNotFoundError } from './errors.js';
 import type {
+  DownloadLink,
   FileInfo,
   FileUpload,
   Match,
@@ -49,7 +50,29 @@ export class FileSystem {
 
   /** The file's bytes. A folder comes back as a gzipped tar. */
   async downloadFile(path: string): Promise<Buffer> {
-    return this.api.getBinary(this.route('/download'), { path });
+    const stream = await this.downloadFileStream(path);
+    return Buffer.from(await new Response(stream).arrayBuffer());
+  }
+
+  /**
+   * mogenius only: the file as a stream, chunked from the container to the
+   * caller without any station holding it whole — for files too big for a
+   * Buffer. Pipe it to disk with `Readable.fromWeb(stream).pipe(createWriteStream(…))`.
+   * The platform hands out a one-time link that is fetched without auth
+   * headers; a platform without streamed downloads answers the buffered way.
+   */
+  async downloadFileStream(path: string): Promise<ReadableStream<Uint8Array>> {
+    let link: DownloadLink;
+    try {
+      link = await this.api.post<DownloadLink>(this.route('/download-link'), undefined, { path });
+    } catch (err) {
+      if (isRouteMissing(err)) {
+        const data = await this.api.getBinary(this.route('/download'), { path });
+        return new Blob([data as Uint8Array<ArrayBuffer>]).stream();
+      }
+      throw err;
+    }
+    return this.api.fetchStream(link.url);
   }
 
   /**
@@ -174,4 +197,9 @@ function assertUploaded(results: UploadResult[]): void {
       source: 'operator',
     });
   }
+}
+
+/** A 404 for the route itself (not for a file): the platform predates streamed downloads. */
+function isRouteMissing(err: unknown): boolean {
+  return err instanceof MogeniusNotFoundError && err.errorCode === undefined && /^Cannot POST /.test(err.message);
 }

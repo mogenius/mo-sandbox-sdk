@@ -51,7 +51,8 @@ npm run format
 | `delete()`                            | `DELETE /sandbox/:namespace/:id`                          |
 | `process.executeCommand()`, `codeRun()` | `POST /sandbox/:namespace/:id/toolbox/process/execute`  |
 | `fs.listFiles()`, `fs.getFileDetails()` | `GET …/toolbox/files` · `…/files/info`                  |
-| `fs.downloadFile()`, `fs.uploadFile(s)()` | `GET …/toolbox/files/download` · `POST …/files/upload` |
+| `fs.downloadFile()`, `fs.downloadFileStream()` | `POST …/toolbox/files/download-link` → `GET <one-time url>` (fallback `GET …/files/download`) |
+| `fs.uploadFile(s)()`                  | `POST …/toolbox/files/upload`                             |
 | `fs.createFolder()`, `fs.moveFiles()`, `fs.deleteFile()` | `POST …/files/folder` · `POST …/files/move` · `DELETE …/files` |
 | `fs.setFilePermissions()`             | `POST …/toolbox/files/permissions`                        |
 | `fs.searchFiles()`, `fs.findFiles()`, `fs.replaceInFiles()` | `GET …/files/search` · `GET …/files/find` · `POST …/files/replace` |

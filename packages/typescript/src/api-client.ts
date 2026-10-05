@@ -29,6 +29,35 @@ export class ApiClient {
     return Buffer.from(await response.arrayBuffer());
   }
 
+  /**
+   * GET of an absolute URL the platform handed out (a one-time download
+   * link). No auth headers: the token in the URL is the credential, the way a
+   * browser opens the same link. The body comes back as a stream.
+   */
+  async fetchStream(url: string): Promise<ReadableStream<Uint8Array>> {
+    let response: Response;
+    try {
+      response = await this.config.fetch(url, {
+        method: 'GET',
+        headers: { accept: '*/*', 'user-agent': '@mogenius/sandbox' },
+      });
+    } catch (err) {
+      throw new MogeniusError(`GET ${url} failed: ${(err as Error).message}`, { source: 'sdk' });
+    }
+    if (!response.ok) {
+      const parsed = parseJson(await response.text());
+      throw errorFromResponse(
+        response.status,
+        parsed as ErrorBody | null,
+        `GET download link → HTTP ${response.status}`,
+      );
+    }
+    if (!response.body) {
+      throw new MogeniusError('The download link answered without a body.', { source: 'api' });
+    }
+    return response.body;
+  }
+
   async post<T>(path: string, body?: unknown, query?: Query): Promise<T> {
     return this.request<T>('POST', path, query, body);
   }

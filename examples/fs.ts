@@ -91,6 +91,15 @@ try {
     assert.ok(back.equals(binary), `got ${back.length} bytes`);
   });
 
+  await step('downloadFileStream streams the same bytes', async () => {
+    const stream = await sandbox.fs.downloadFileStream(`${src}/blob.bin`);
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream as unknown as AsyncIterable<Uint8Array>) {
+      chunks.push(Buffer.from(chunk));
+    }
+    assert.ok(Buffer.concat(chunks).equals(binary), `streamed ${Buffer.concat(chunks).length} bytes`);
+  });
+
   await step('getFileDetails', async () => {
     const info = await sandbox.fs.getFileDetails(`${src}/a.txt`);
     assert.equal(info.name, 'a.txt');

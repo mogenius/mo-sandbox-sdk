@@ -100,24 +100,72 @@ describe('FileSystem', () => {
     expect(calls[1]!.url.searchParams.has('path')).toBe(false);
   });
 
-  it('downloadFile returns the raw bytes', async () => {
-    const { fetch } = fakeFetch(
+  it('downloadFile asks for a one-time link, then fetches it without auth headers', async () => {
+    const { fetch, calls } = fakeFetch(
       { body: sandboxInfo() },
+      { body: { url: 'https://api.test/storage/download/tok-1', expiresInSeconds: 60 } },
       { raw: Buffer.from('binary\u0000data'), contentType: 'application/octet-stream' },
     );
     const sandbox = await new Mogenius({ ...CONFIG, fetch }).get('default-abc12');
     const data = await sandbox.fs.downloadFile('/etc/hostname');
+
+    expect(calls[1]!.method).toBe('POST');
+    expect(calls[1]!.url.pathname).toBe(`${base}/download-link`);
+    expect(calls[1]!.url.searchParams.get('path')).toBe('/etc/hostname');
+    expect(calls[1]!.headers.authorization).toBe('Bearer mo_pat:user:secret');
+
+    expect(calls[2]!.method).toBe('GET');
+    expect(calls[2]!.url.href).toBe('https://api.test/storage/download/tok-1');
+    expect(calls[2]!.headers.authorization).toBeUndefined();
+    expect(calls[2]!.headers['organization-id']).toBeUndefined();
+
     expect(Buffer.isBuffer(data)).toBe(true);
     expect(data.toString('latin1')).toBe('binary\u0000data');
   });
 
-  it('downloadFile maps a 404 to the not-found error class', async () => {
+  it('downloadFileStream hands out the bytes as a stream', async () => {
     const { fetch } = fakeFetch(
       { body: sandboxInfo() },
-      { status: 404, body: { errorCode: 'SANDBOX_NOT_FOUND', message: 'No file at "/nope".' } },
+      { body: { url: 'https://api.test/storage/download/tok-2', expiresInSeconds: 60 } },
+      { raw: Buffer.from('chunked'), contentType: 'text/plain' },
+    );
+    const sandbox = await new Mogenius({ ...CONFIG, fetch }).get('default-abc12');
+    const stream = await sandbox.fs.downloadFileStream('notes.txt');
+    expect(stream).toBeInstanceOf(ReadableStream);
+    expect(await new Response(stream).text()).toBe('chunked');
+  });
+
+  it('downloadFile maps a missing file to the not-found error class before any link is fetched', async () => {
+    const { fetch, calls } = fakeFetch(
+      { body: sandboxInfo() },
+      { status: 404, body: { errorCode: 'SANDBOX_FILE_NOT_FOUND', message: 'No file at "/nope".' } },
     );
     const sandbox = await new Mogenius({ ...CONFIG, fetch }).get('default-abc12');
     await expect(sandbox.fs.downloadFile('/nope')).rejects.toBeInstanceOf(MogeniusNotFoundError);
+    expect(calls).toHaveLength(2);
+  });
+
+  it('downloadFile maps a spent or expired link to the not-found error class', async () => {
+    const { fetch } = fakeFetch(
+      { body: sandboxInfo() },
+      { body: { url: 'https://api.test/storage/download/tok-3', expiresInSeconds: 60 } },
+      { status: 404, body: { errorCode: 'DOWNLOAD_LINK_INVALID', message: 'expired' } },
+    );
+    const sandbox = await new Mogenius({ ...CONFIG, fetch }).get('default-abc12');
+    await expect(sandbox.fs.downloadFile('a.txt')).rejects.toBeInstanceOf(MogeniusNotFoundError);
+  });
+
+  it('downloadFile falls back to the buffered route on a platform without download links', async () => {
+    const { fetch, calls } = fakeFetch(
+      { body: sandboxInfo() },
+      { status: 404, body: { statusCode: 404, error: 'Not Found', message: `Cannot POST ${base}/download-link` } },
+      { raw: Buffer.from('old way'), contentType: 'application/octet-stream' },
+    );
+    const sandbox = await new Mogenius({ ...CONFIG, fetch }).get('default-abc12');
+    const data = await sandbox.fs.downloadFile('a.txt');
+    expect(data.toString('utf8')).toBe('old way');
+    expect(calls[2]!.method).toBe('GET');
+    expect(calls[2]!.url.pathname).toBe(`${base}/download`);
   });
 
   it('createFolder, moveFiles, deleteFile and setFilePermissions carry their parameters as query', async () => {

@@ -70,6 +70,7 @@ await sandbox.fs.uploadFiles([
 const entries = await sandbox.fs.listFiles(); // FileInfo[]: name, isDir, size, modTime, mode, owner, group
 const info = await sandbox.fs.getFileDetails('app.py');
 const data = await sandbox.fs.downloadFile('app.py'); // Buffer; a folder comes as .tar.gz
+const stream = await sandbox.fs.downloadFileStream('big.bin'); // mogenius only: ReadableStream for large files
 
 await sandbox.fs.createFolder('out', '755');
 await sandbox.fs.moveFiles('app.py', 'out/app.py');
