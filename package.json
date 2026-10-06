@@ -14,7 +14,9 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces",
+    "build:check": "npm run build:check --workspaces",
     "test": "npm run test --workspaces",
+    "test:coverage": "npm run test:coverage --workspaces",
     "lint": "npm run lint --workspaces",
     "lint:fix": "npm run lint:fix --workspaces",
     "format": "prettier --write \"packages/**/*.ts\" \"examples/**/*.ts\"",

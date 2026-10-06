@@ -1,0 +1,53 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v[0-9]*.[0-9]*.[0-9]*"
+
+permissions:
+  contents: read
+  # npm provenance attestation
+  id-token: write
+
+# The tag is cut by release-please; never cancel a release run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      # release-please writes the tag's version into package.json before it cuts the tag
+      - name: Check that the tag matches package.json
+        run: |
+          VERSION=$(node -p "require('./packages/typescript/package.json').version")
+          if [[ "v$VERSION" != "$GITHUB_REF_NAME" ]]; then
+            echo "package.json is $VERSION but the tag is $GITHUB_REF_NAME"
+            exit 1
+          fi
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm run test
+
+      - name: Publish @mogenius/sandbox
+        env:
+          # npmjs.com automation token with publish rights on the @mogenius scope
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish -w packages/typescript --provenance --access public
