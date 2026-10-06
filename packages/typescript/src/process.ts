@@ -14,6 +14,8 @@ const STREAM_EXIT_PREFIX = 'EXIT:';
 const STREAM_ERROR_PREFIX = 'ERROR:';
 const STREAM_TRUNCATED = 'TRUNCATED';
 const STREAM_TIMEOUT = 'TIMEOUT';
+// the gateway asks for the command once the connection is authorized; it does not travel in the URL
+const STREAM_REQUEST_PROMPT = 'SEND_EXEC_REQUEST';
 
 /** What the platform answers to the toolbox exec route. */
 interface ExecuteCommandResponseBody {
@@ -77,10 +79,13 @@ export class Process {
       namespace: this.namespace,
       podName,
       container: containerName,
+    });
+    // the same body as the toolbox route, sent once the gateway asks for it
+    const request = JSON.stringify({
       command,
-      cwd,
-      env: env && Object.keys(env).length > 0 ? JSON.stringify(env) : undefined,
-      timeout: timeout > 0 ? Math.ceil(timeout) : undefined,
+      ...(cwd ? { cwd } : {}),
+      ...(env && Object.keys(env).length > 0 ? { env } : {}),
+      ...(timeout > 0 ? { timeout: Math.ceil(timeout) } : {}),
     });
 
     const events = new EventQueue<ExecEvent>();
@@ -96,7 +101,9 @@ export class Process {
         return;
       }
       const text = message.data;
-      if (text.startsWith(STREAM_EXIT_PREFIX)) {
+      if (text === STREAM_REQUEST_PROMPT) {
+        socket.send(request);
+      } else if (text.startsWith(STREAM_EXIT_PREFIX)) {
         exitCode = Number(text.slice(STREAM_EXIT_PREFIX.length));
       } else if (text === STREAM_TRUNCATED) {
         truncated = true;

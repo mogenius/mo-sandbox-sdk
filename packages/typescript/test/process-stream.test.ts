@@ -16,12 +16,17 @@ class FakeWebSocket {
   readyState = 1;
   binaryType = 'blob';
   closedWith: number | undefined;
+  sent: string[] = [];
   onmessage: ((event: { data: string | ArrayBuffer }) => void) | null = null;
   onclose: ((event: { code: number; reason: string }) => void) | null = null;
   onerror: (() => void) | null = null;
 
   constructor(readonly url: URL) {
     FakeWebSocket.instances.push(this);
+  }
+
+  send(data: string): void {
+    this.sent.push(data);
   }
 
   close(code?: number): void {
@@ -89,7 +94,7 @@ async function collect(
 }
 
 describe('Process.executeCommandStream', () => {
-  it('opens the gateway socket with the exec request in the query string', async () => {
+  it('addresses the pod in the query string and sends the exec request when asked', async () => {
     const { socket, stream, first } = await openStream('npm test', '/app', { CI: '1' }, 300);
     const params = socket.url.searchParams;
     expect(socket.url.origin + socket.url.pathname).toBe('wss://stream.test/xterm-stream');
@@ -101,25 +106,28 @@ describe('Process.executeCommandStream', () => {
     expect(params.get('namespace')).toBe('agent-sandbox');
     expect(params.get('podName')).toBe('default-k27tp');
     expect(params.get('container')).toBe('sandbox');
-    expect(params.get('command')).toBe('npm test');
-    expect(params.get('cwd')).toBe('/app');
-    expect(params.get('env')).toBe('{"CI":"1"}');
-    expect(params.get('timeout')).toBe('300');
+    // the command is not in the URL: a WAF in front of the gateway rejects shell syntax there
+    expect(params.has('command')).toBe(false);
+    expect(socket.sent).toEqual([]);
+    socket.frame('SEND_EXEC_REQUEST');
+    expect(socket.sent.map((s) => JSON.parse(s))).toEqual([
+      { command: 'npm test', cwd: '/app', env: { CI: '1' }, timeout: 300 },
+    ]);
     expect(params.get('binary')).toBe('1');
     expect(socket.binaryType).toBe('arraybuffer');
     await finish(socket, stream, first);
   });
 
-  it('leaves cwd and env out when absent and defaults the timeout', async () => {
+  it('leaves cwd and env out of the request when absent and defaults the timeout', async () => {
     const { socket, stream, first } = await openStream('true', undefined, {});
-    expect(socket.url.searchParams.has('cwd')).toBe(false);
-    expect(socket.url.searchParams.has('env')).toBe(false);
-    expect(socket.url.searchParams.get('timeout')).toBe('10');
+    socket.frame('SEND_EXEC_REQUEST');
+    expect(socket.sent.map((s) => JSON.parse(s))).toEqual([{ command: 'true', timeout: 10 }]);
     await finish(socket, stream, first);
   });
 
   it('yields stdout and stderr apart, then the exit event, then ends', async () => {
     const { socket, stream, first } = await openStream();
+    socket.frame('SEND_EXEC_REQUEST');
     socket.frame('PEER_IS_READY');
     socket.frame(bytes(0, '1\n'));
     socket.frame(bytes(1, 'warn\n'));
