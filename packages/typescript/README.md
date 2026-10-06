@@ -55,6 +55,22 @@ const ts = await sandbox.process.codeRun('console.log(42)', { language: 'typescr
 `executeCommand` is stateless: `cd` and `export` do not carry over. The default timeout is 10 seconds; the
 cluster caps the maximum (300 seconds by default).
 
+### Live output (mogenius only)
+
+For builds, tests and servers, `executeCommandStream` delivers stdout and stderr while the command runs and
+ends with the exit code. Leaving the loop early stops the command in the container.
+
+```ts
+for await (const event of sandbox.process.executeCommandStream('npm test', '/home/coder/project', {}, 300)) {
+  if (event.type === 'exit') console.log('exit', event.exitCode, event.timedOut ? '(timed out)' : '');
+  else process.stdout.write(`${event.type}: ${new TextDecoder().decode(event.data)}`);
+}
+```
+
+The stream goes through the platform's stream gateway (`MOGENIUS_STREAM_URL`, default
+`wss://k8s-cmd-stream.mogenius.com`) and needs `organizationId` and `clusterId` set, since the gateway does
+not take them from the key. Node 22+ (global `WebSocket`), or pass `webSocket` in the config.
+
 ## Files
 
 `sandbox.fs` is the sandbox's file system. Paths are absolute inside the container or relative to its working

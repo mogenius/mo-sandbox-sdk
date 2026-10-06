@@ -24,19 +24,28 @@ export interface MogeniusConfig {
   target?: string;
   /** Workspace to act through when the key has no cluster role. Header `workspace-name`. */
   workspaceName?: string;
+  /**
+   * mogenius: the platform's stream gateway, for `executeCommandStream()`.
+   * Env: `MOGENIUS_STREAM_URL`. Default: wss://k8s-cmd-stream.mogenius.com
+   */
+  streamUrl?: string;
   /** Replaces the global `fetch`; for tests and custom agents. */
   fetch?: typeof fetch;
+  /** Replaces the global `WebSocket` (Node 22+); for tests and custom agents. */
+  webSocket?: typeof WebSocket;
 }
 
 /** Everything a Sandbox needs from the config, resolved. */
 export interface ResolvedConfig {
   apiKey: string;
   apiUrl: string;
+  streamUrl: string;
   organizationId: string | undefined;
   clusterId: string | undefined;
   namespace: string;
   workspaceName: string | undefined;
   fetch: typeof fetch;
+  webSocket: typeof WebSocket | undefined;
 }
 
 /** Languages `codeRun` knows how to launch. */
@@ -123,6 +132,23 @@ export interface ExecutionArtifacts {
   /** Charts matplotlib printed as artifacts; filled by `codeRun()` for Python. */
   charts?: Chart[];
 }
+
+/**
+ * mogenius: one event of `executeCommandStream()`. Output arrives as bytes of
+ * the stream it was written to, in order within each stream; the last event
+ * is always `exit`.
+ */
+export type ExecEvent =
+  | { type: 'stdout' | 'stderr'; data: Uint8Array }
+  | {
+      type: 'exit';
+      /** Exit code of the command; 137 when it was killed, which a timeout does. */
+      exitCode: number;
+      /** A stream exceeded the cluster's output cap; what came after was dropped. */
+      truncated: boolean;
+      /** The command was stopped at its timeout. */
+      timedOut: boolean;
+    };
 
 /** A chart `codeRun()` extracted from the output. */
 export interface Chart {

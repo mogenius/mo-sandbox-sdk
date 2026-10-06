@@ -27,7 +27,10 @@ export class Sandbox {
     private readonly language: CodeLanguage = 'python',
   ) {
     this.info = info;
-    this.process = new Process(api, info.namespace, info.id, language);
+    this.process = new Process(api, info.namespace, info.id, language, () => ({
+      podName: this.info.podName,
+      containerName: this.info.containerName,
+    }));
     this.fs = new FileSystem(api, info.namespace, info.id);
   }
 

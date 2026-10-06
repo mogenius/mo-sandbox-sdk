@@ -1,8 +1,19 @@
 import type { ApiClient } from './api-client.js';
-import type { Chart, CodeLanguage, CodeRunParams, ExecuteResponse } from './types.js';
+import { MogeniusConflictError, MogeniusError, MogeniusNotFoundError } from './errors.js';
+import type { Chart, CodeLanguage, CodeRunParams, ExecEvent, ExecuteResponse } from './types.js';
 
 /** Default when a call names no timeout. */
 export const DEFAULT_COMMAND_TIMEOUT_SECONDS = 10;
+
+/**
+ * Frames of an exec stream, as the operator writes them: output behind a
+ * one-byte stream tag, control messages as text.
+ */
+const STREAM_TAG_STDERR = 1;
+const STREAM_EXIT_PREFIX = 'EXIT:';
+const STREAM_ERROR_PREFIX = 'ERROR:';
+const STREAM_TRUNCATED = 'TRUNCATED';
+const STREAM_TIMEOUT = 'TIMEOUT';
 
 /** What the platform answers to the toolbox exec route. */
 interface ExecuteCommandResponseBody {
@@ -29,7 +40,95 @@ export class Process {
     private readonly namespace: string,
     private readonly sandboxId: string,
     private readonly defaultLanguage: CodeLanguage,
+    /** Where the sandbox runs right now; streams address the pod directly. */
+    private readonly pod: () => { podName: string | null; containerName: string },
   ) {}
+
+  /**
+   * mogenius: runs a command like `executeCommand`, but delivers its output
+   * while it runs — for builds, tests and servers. Yields stdout and stderr
+   * chunks as they arrive and ends with one `exit` event carrying the exit
+   * code. Leaving the loop early (`break`, `return`) closes the stream, which
+   * stops the command in the container within seconds. The command is
+   * stateless and gets no stdin, like `executeCommand`.
+   *
+   * Needs `organizationId`, `clusterId` and the stream gateway (`streamUrl`).
+   *
+   * @param command the command line
+   * @param cwd working directory inside the container; the container's own when absent
+   * @param env environment variables for this run; keys must be shell identifiers
+   * @param timeout seconds until the command is stopped (default 10); the platform caps it
+   */
+  async *executeCommandStream(
+    command: string,
+    cwd?: string,
+    env?: Record<string, string>,
+    timeout: number = DEFAULT_COMMAND_TIMEOUT_SECONDS,
+  ): AsyncGenerator<ExecEvent, void, void> {
+    const { podName, containerName } = this.pod();
+    if (!podName) {
+      throw new MogeniusConflictError(
+        'The sandbox has no pod yet: wait until it is started before streaming a command.',
+      );
+    }
+    const socket = this.api.openStream({
+      type: 'CLUSTER__POD_EXEC',
+      cmd: 'exec',
+      namespace: this.namespace,
+      podName,
+      container: containerName,
+      command,
+      cwd,
+      env: env && Object.keys(env).length > 0 ? JSON.stringify(env) : undefined,
+      timeout: timeout > 0 ? Math.ceil(timeout) : undefined,
+    });
+
+    const events = new EventQueue<ExecEvent>();
+    let exitCode: number | undefined;
+    let truncated = false;
+    let timedOut = false;
+    socket.onmessage = (message: MessageEvent): void => {
+      if (typeof message.data !== 'string') {
+        const frame = new Uint8Array(message.data as ArrayBuffer);
+        if (frame.length > 1) {
+          events.push({ type: frame[0] === STREAM_TAG_STDERR ? 'stderr' : 'stdout', data: frame.subarray(1) });
+        }
+        return;
+      }
+      const text = message.data;
+      if (text.startsWith(STREAM_EXIT_PREFIX)) {
+        exitCode = Number(text.slice(STREAM_EXIT_PREFIX.length));
+      } else if (text === STREAM_TRUNCATED) {
+        truncated = true;
+      } else if (text === STREAM_TIMEOUT) {
+        timedOut = true;
+      } else if (text.startsWith(STREAM_ERROR_PREFIX)) {
+        events.fail(new MogeniusError(text.slice(STREAM_ERROR_PREFIX.length), { source: 'operator' }));
+      }
+      // anything else (PEER_IS_READY, pings) is the gateway talking to itself
+    };
+    socket.onclose = (event: CloseEvent): void => {
+      if (exitCode !== undefined) {
+        events.push({ type: 'exit', exitCode, truncated, timedOut });
+        events.end();
+        return;
+      }
+      events.fail(streamCloseError(event, this.api.streamUrl));
+    };
+    socket.onerror = (): void => {
+      // the close event that follows carries what can be known
+    };
+
+    try {
+      for await (const event of events) {
+        yield event;
+      }
+    } finally {
+      if (socket.readyState === socket.CONNECTING || socket.readyState === socket.OPEN) {
+        socket.close(1000);
+      }
+    }
+  }
 
   /**
    * Runs a shell command line. Pipes, `&&` and quoting behave as in the
@@ -89,6 +188,73 @@ export class Process {
       result: text + (response.artifacts?.stderr ?? ''),
       artifacts: { stdout: text, stderr: response.artifacts?.stderr ?? '', ...(charts.length > 0 ? { charts } : {}) },
     };
+  }
+}
+
+/** The error a stream that closed without an exit code stands for. */
+function streamCloseError(event: CloseEvent, streamUrl: string): MogeniusError {
+  const reason = event.reason || '';
+  if (reason === 'POD_DOES_NOT_EXIST') {
+    return new MogeniusNotFoundError('The sandbox pod does not exist (any more).', { source: 'operator' });
+  }
+  if (event.code === 1006) {
+    return new MogeniusError(
+      `Could not connect to the stream gateway at ${streamUrl}: check MOGENIUS_STREAM_URL, the key, and that organizationId and clusterId are set and allow commands in this pod.`,
+      { source: 'sdk' },
+    );
+  }
+  if (event.code === 1000) {
+    return new MogeniusError('The stream closed before the command reported an exit code.', { source: 'api' });
+  }
+  return new MogeniusError(reason || `The stream closed with code ${event.code}.`, { source: 'api' });
+}
+
+/**
+ * Hands socket events over to an async iterator: `push` queues, `end`
+ * finishes after what is queued, `fail` rejects the waiting (or next) read.
+ */
+class EventQueue<T> implements AsyncIterable<T> {
+  private readonly queue: T[] = [];
+  private done = false;
+  private error: Error | undefined;
+  private wake: (() => void) | undefined;
+
+  push(item: T): void {
+    this.queue.push(item);
+    this.wake?.();
+  }
+
+  end(): void {
+    this.done = true;
+    this.wake?.();
+  }
+
+  fail(error: Error): void {
+    if (this.done) {
+      return;
+    }
+    this.error = error;
+    this.done = true;
+    this.wake?.();
+  }
+
+  async *[Symbol.asyncIterator](): AsyncGenerator<T, void, void> {
+    for (;;) {
+      if (this.queue.length > 0) {
+        yield this.queue.shift()!;
+        continue;
+      }
+      if (this.error) {
+        throw this.error;
+      }
+      if (this.done) {
+        return;
+      }
+      await new Promise<void>((resolve) => {
+        this.wake = resolve;
+      });
+      this.wake = undefined;
+    }
   }
 }
 

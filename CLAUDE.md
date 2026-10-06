@@ -50,6 +50,7 @@ npm run format
 | `start()`, `stop()`                   | `POST /sandbox/:namespace/:id/start` · `/stop`            |
 | `delete()`                            | `DELETE /sandbox/:namespace/:id`                          |
 | `process.executeCommand()`, `codeRun()` | `POST /sandbox/:namespace/:id/toolbox/process/execute`  |
+| `process.executeCommandStream()`      | stream gateway `/xterm-stream?type=CLUSTER__POD_EXEC&cmd=exec&namespace&podName&container&command&cwd&env&timeout` (binary frames: tag 0 stdout, 1 stderr; text `EXIT:<code>`, `TRUNCATED`, `TIMEOUT`, `ERROR:<msg>`) |
 | `fs.listFiles()`, `fs.getFileDetails()` | `GET …/toolbox/files` · `…/files/info`                  |
 | `fs.downloadFile()`, `fs.downloadFileStream()` | `POST …/toolbox/files/download-link` → `GET <one-time url>` (fallback `GET …/files/download`) |
 | `fs.uploadFile(s)()`                  | `POST …/toolbox/files/upload`                             |

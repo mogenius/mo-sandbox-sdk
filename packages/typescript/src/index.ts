@@ -2,7 +2,7 @@ export { Mogenius } from './mogenius.js';
 export { Sandbox } from './sandbox.js';
 export { Process, DEFAULT_COMMAND_TIMEOUT_SECONDS } from './process.js';
 export { FileSystem } from './file-system.js';
-export { resolveConfig, DEFAULT_API_URL, DEFAULT_NAMESPACE } from './config.js';
+export { resolveConfig, DEFAULT_API_URL, DEFAULT_STREAM_URL, DEFAULT_NAMESPACE } from './config.js';
 export {
   MogeniusError,
   MogeniusUnauthorizedError,
@@ -31,6 +31,7 @@ export type {
   ListSandboxesOptions,
   ExecuteResponse,
   ExecutionArtifacts,
+  ExecEvent,
   Chart,
   CodeRunParams,
   DownloadLink,

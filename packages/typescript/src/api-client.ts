@@ -15,6 +15,10 @@ export class ApiClient {
     return this.config.namespace;
   }
 
+  get streamUrl(): string {
+    return this.config.streamUrl;
+  }
+
   async get<T>(path: string, query?: Query): Promise<T> {
     return this.request<T>('GET', path, query);
   }
@@ -78,6 +82,41 @@ export class ApiClient {
 
   async delete<T>(path: string, query?: Query): Promise<T> {
     return this.request<T>('DELETE', path, query);
+  }
+
+  /**
+   * Opens a socket on the platform's stream gateway. The gateway reads the
+   * query string like headers, so the key and the ids travel there; binary
+   * frames are on, since output frames carry a stream tag. Unlike the HTTP
+   * routes, the gateway does not infer organization and cluster from the
+   * key, so both have to be configured.
+   */
+  openStream(query: Query): WebSocket {
+    const WebSocketImpl = this.config.webSocket;
+    if (typeof WebSocketImpl !== 'function') {
+      throw new MogeniusError('No WebSocket available: use Node 22+ or pass `webSocket` in the config.');
+    }
+    if (!this.config.organizationId || !this.config.clusterId) {
+      throw new MogeniusError(
+        'Streams need `organizationId` and `clusterId` (MOGENIUS_ORGANIZATION_ID, MOGENIUS_CLUSTER_ID): the stream gateway does not take them from the key.',
+      );
+    }
+    const url = new URL(`${this.config.streamUrl}/xterm-stream`);
+    url.searchParams.set('authorization', `bearer ${this.config.apiKey}`);
+    url.searchParams.set('organizationId', this.config.organizationId);
+    url.searchParams.set('clusterId', this.config.clusterId);
+    if (this.config.workspaceName) {
+      url.searchParams.set('workspaceName', this.config.workspaceName);
+    }
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== '') {
+        url.searchParams.set(key, String(value));
+      }
+    }
+    url.searchParams.set('binary', '1');
+    const socket = new WebSocketImpl(url);
+    socket.binaryType = 'arraybuffer';
+    return socket;
   }
 
   private headers(body: unknown): Record<string, string> {
