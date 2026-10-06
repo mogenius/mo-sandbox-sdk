@@ -50,7 +50,7 @@ describe('Process.executeCommand', () => {
         status: 408,
         body: {
           statusCode: 408,
-          errorCode: 'SANDBOX_EXEC_TIMEOUT',
+          errorCode: 'EXEC_TIMEOUT',
           source: 'operator',
           message: 'exec: command timed out after 2s',
         },

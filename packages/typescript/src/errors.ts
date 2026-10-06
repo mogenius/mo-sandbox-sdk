@@ -59,23 +59,23 @@ export function errorFromResponse(status: number, body: ErrorBody | string | nul
   const details = { statusCode: status, errorCode: parsed.errorCode, source: parsed.source };
 
   switch (parsed.errorCode) {
-    case 'SANDBOX_EXEC_TIMEOUT':
+    case 'EXEC_TIMEOUT':
       return new MogeniusProcessExecutionTimeoutError(message, details);
     case 'OPERATOR_TIMEOUT':
       return new MogeniusTimeoutError(message, details);
     case 'OPERATOR_UPGRADE_REQUIRED':
       return new MogeniusOperatorUpgradeRequiredError(message, details);
     case 'SANDBOX_NOT_FOUND':
-    case 'SANDBOX_CONTAINER_NOT_FOUND':
+    case 'CONTAINER_NOT_FOUND':
     case 'SANDBOX_PROFILE_NOT_FOUND':
-    case 'SANDBOX_FILE_NOT_FOUND':
+    case 'FILE_NOT_FOUND':
       return new MogeniusNotFoundError(message, details);
     case 'SANDBOX_NOT_READY':
     case 'SANDBOX_ALREADY_EXISTS':
-    case 'SANDBOX_FILE_EXISTS':
-    case 'SANDBOX_FILE_NOT_EMPTY':
+    case 'FILE_EXISTS':
+    case 'FILE_NOT_EMPTY':
       return new MogeniusConflictError(message, details);
-    case 'SANDBOX_FILE_PERMISSION_DENIED':
+    case 'FILE_PERMISSION_DENIED':
       return new MogeniusForbiddenError(message, details);
     case 'INVALID_REQUEST':
     case 'SANDBOX_ENV_NOT_ALLOWED':

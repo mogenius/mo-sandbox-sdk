@@ -138,7 +138,7 @@ describe('FileSystem', () => {
   it('downloadFile maps a missing file to the not-found error class before any link is fetched', async () => {
     const { fetch, calls } = fakeFetch(
       { body: sandboxInfo() },
-      { status: 404, body: { errorCode: 'SANDBOX_FILE_NOT_FOUND', message: 'No file at "/nope".' } },
+      { status: 404, body: { errorCode: 'FILE_NOT_FOUND', message: 'No file at "/nope".' } },
     );
     const sandbox = await new Mogenius({ ...CONFIG, fetch }).get('default-abc12');
     await expect(sandbox.fs.downloadFile('/nope')).rejects.toBeInstanceOf(MogeniusNotFoundError);

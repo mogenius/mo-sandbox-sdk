@@ -31,7 +31,7 @@ npm run format
 - **Established names first.** Methods, parameters and error classes keep the names agent frameworks expect (`snapshot` = profile,
   `target` = namespace, `autoDeleteInterval` = lifetime). mogenius-only additions are marked in the docs.
 - **No parallel structures.** Routes, DTO shapes and error codes come from the platform
-  (`@mogenius/client-sdk`, module `mo-sandbox`); mirror them, do not invent new ones here.
+  (`@mogenius/client-sdk`: lifecycle in `mo-sandbox`, exec and files in `mo-kubernetes/k8s-pod`); mirror them, do not invent new ones here.
 - **Unsupported is explicit.** What Kubernetes pods cannot do throws `MogeniusUnsupportedError` with the
   reason and the alternative; never silently degrade.
 - **Tests mock `fetch`** (`test/helpers.ts`), never the classes. Cover the request shape and the error
