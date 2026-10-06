@@ -30,17 +30,22 @@ export class ApiClient {
   }
 
   /**
-   * GET of an absolute URL the platform handed out (a one-time download
-   * link). No auth headers: the token in the URL is the credential, the way a
-   * browser opens the same link. The body comes back as a stream.
+   * GET of an absolute URL the platform handed out (a download link). No auth
+   * headers: the token in the URL is the credential, the way a browser opens
+   * the same link. With `range` it asks to continue at that byte offset, but
+   * only if the file is still the version `ifRange` names.
    */
-  async fetchStream(url: string): Promise<ReadableStream<Uint8Array>> {
+  async fetchDownload(url: string, range?: { offset: number; ifRange?: string }): Promise<Response> {
+    const headers: Record<string, string> = { accept: '*/*', 'user-agent': '@mogenius/sandbox' };
+    if (range) {
+      headers.range = `bytes=${range.offset}-`;
+      if (range.ifRange) {
+        headers['if-range'] = range.ifRange;
+      }
+    }
     let response: Response;
     try {
-      response = await this.config.fetch(url, {
-        method: 'GET',
-        headers: { accept: '*/*', 'user-agent': '@mogenius/sandbox' },
-      });
+      response = await this.config.fetch(url, { method: 'GET', headers });
     } catch (err) {
       throw new MogeniusError(`GET ${url} failed: ${(err as Error).message}`, { source: 'sdk' });
     }
@@ -55,7 +60,7 @@ export class ApiClient {
     if (!response.body) {
       throw new MogeniusError('The download link answered without a body.', { source: 'api' });
     }
-    return response.body;
+    return response;
   }
 
   async post<T>(path: string, body?: unknown, query?: Query): Promise<T> {

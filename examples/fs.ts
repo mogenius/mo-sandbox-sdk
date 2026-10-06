@@ -10,6 +10,7 @@
 // Optional: MOGENIUS_VIEWER_API_KEY — a key with the cluster-viewer role. Reads must pass
 // with it, writes must be refused with 403.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import {
   Mogenius,
   MogeniusConflictError,
@@ -220,6 +221,60 @@ try {
     await sandbox.fs.deleteFile(`${weird}/${names[2]}`);
     const after = (await sandbox.fs.listFiles(weird)).map((entry) => entry.name).sort();
     assert.deepEqual(after, [names[1]!, 'renamed with space.txt'].sort());
+  });
+
+  await step('downloadFile resumes after a dropped connection (MOG-4747)', async () => {
+    const path = `${root}/resume.bin`;
+    const made = await sandbox.process.executeCommand(
+      `head -c 8388608 /dev/urandom > '${path}' && md5sum '${path}' | cut -d' ' -f1`,
+      undefined,
+      undefined,
+      120,
+    );
+    const expected = made.result.trim();
+    // A fetch that breaks the first download after an odd number of bytes,
+    // like a socket dropped mid-transfer; every later request goes through.
+    const cutAfter = 3_000_001;
+    const downloads: { range: string | undefined; status: number }[] = [];
+    const breaking: typeof fetch = async (input, init) => {
+      const response = await fetch(input, init);
+      if (!String(input).includes('/storage/download/')) {
+        return response;
+      }
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      downloads.push({ range: headers.range, status: response.status });
+      if (downloads.length > 1 || !response.body) {
+        return response;
+      }
+      const reader = response.body.getReader();
+      let sent = 0;
+      const cut = new ReadableStream<Uint8Array>({
+        async pull(controller): Promise<void> {
+          const { done, value } = await reader.read();
+          if (done) {
+            controller.close();
+            return;
+          }
+          if (sent + value.byteLength >= cutAfter) {
+            controller.enqueue(value.subarray(0, cutAfter - sent));
+            await reader.cancel();
+            controller.error(new TypeError('terminated'));
+            return;
+          }
+          sent += value.byteLength;
+          controller.enqueue(value);
+        },
+      });
+      return new Response(cut, { status: response.status, headers: response.headers });
+    };
+    const resuming = await new Mogenius({ fetch: breaking }).get(sandbox.id);
+    const data = await resuming.fs.downloadFile(path);
+    assert.equal(data.length, 8388608, 'complete length');
+    assert.equal(createHash('md5').update(data).digest('hex'), expected, 'same bytes as in the pod');
+    assert.deepEqual(downloads, [
+      { range: undefined, status: 200 },
+      { range: `bytes=${cutAfter}-`, status: 206 },
+    ]);
   });
 
   await step('deleteFile recursive removes the tree', async () => {

@@ -100,7 +100,7 @@ describe('FileSystem', () => {
     expect(calls[1]!.url.searchParams.has('path')).toBe(false);
   });
 
-  it('downloadFile asks for a one-time link, then fetches it without auth headers', async () => {
+  it('downloadFile asks for a download link, then fetches it without auth headers', async () => {
     const { fetch, calls } = fakeFetch(
       { body: sandboxInfo() },
       { body: { url: 'https://api.test/storage/download/tok-1', expiresInSeconds: 60 } },

@@ -58,8 +58,13 @@ export class FileSystem {
    * mogenius only: the file as a stream, chunked from the container to the
    * caller without any station holding it whole — for files too big for a
    * Buffer. Pipe it to disk with `Readable.fromWeb(stream).pipe(createWriteStream(…))`.
-   * The platform hands out a one-time link that is fetched without auth
+   * The platform hands out a short-lived link that is fetched without auth
    * headers; a platform without streamed downloads answers the buffered way.
+   *
+   * A file (not a folder) resumes on its own: when the connection drops or
+   * ends early, the stream asks the same link for the rest with a Range
+   * request and carries on, up to five times with growing pauses. The bytes
+   * the caller reads stay one uninterrupted, complete file.
    */
   async downloadFileStream(path: string): Promise<ReadableStream<Uint8Array>> {
     let link: DownloadLink;
@@ -72,8 +77,12 @@ export class FileSystem {
       }
       throw err;
     }
-    return this.api.fetchStream(link.url);
+    const first = await this.api.fetchDownload(link.url);
+    return resumableStream(this.api, link.url, first, this.resumeDelaysMs);
   }
+
+  /** Pauses before each resume attempt; tests shorten them. */
+  private readonly resumeDelaysMs: readonly number[] = [1000, 2000, 4000, 8000, 16000];
 
   /**
    * Writes `file` to `path`, creating parent folders. A string is written as
@@ -202,4 +211,81 @@ function assertUploaded(results: UploadResult[]): void {
 /** A 404 for the route itself (not for a file): the platform predates streamed downloads. */
 function isRouteMissing(err: unknown): boolean {
   return err instanceof MogeniusNotFoundError && err.errorCode === undefined && /^Cannot POST /.test(err.message);
+}
+
+/**
+ * Wraps a download response in a stream that resumes on its own (MOG-4747).
+ * It counts the bytes it handed out; when the body errors or ends before the
+ * announced length, it asks `url` again for the rest with `Range` and the
+ * file's ETag in `If-Range`. Only a 206 that continues exactly at that byte is
+ * spliced in: a 200 means the file changed (or the platform cannot resume),
+ * and since bytes already went out the stream fails instead of repeating them.
+ */
+function resumableStream(
+  api: ApiClient,
+  url: string,
+  first: Response,
+  delaysMs: readonly number[],
+): ReadableStream<Uint8Array> {
+  const total = Number(first.headers.get('content-length') ?? NaN);
+  const etag = first.headers.get('etag') ?? undefined;
+  const resumable = first.headers.get('accept-ranges') === 'bytes' && etag !== undefined && Number.isFinite(total);
+  let reader = first.body!.getReader();
+  let received = 0;
+  let attempts = 0;
+
+  const resume = async (cause: string): Promise<void> => {
+    if (!resumable || attempts >= delaysMs.length) {
+      throw new MogeniusError(
+        resumable
+          ? `Download stopped at byte ${received} of ${total} and could not be resumed: ${cause}`
+          : `Download stopped at byte ${received}: ${cause}`,
+        { source: 'sdk' },
+      );
+    }
+    await sleep(delaysMs[attempts]!);
+    attempts++;
+    const response = await api.fetchDownload(url, { offset: received, ifRange: etag });
+    const range = /^bytes (\d+)-\d+\/\d+$/.exec(response.headers.get('content-range') ?? '');
+    if (response.status !== 206 || !range || Number(range[1]) !== received) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new MogeniusError(
+        `Download could not continue at byte ${received}: the file changed or the platform cannot resume (HTTP ${response.status}).`,
+        { source: 'sdk' },
+      );
+    }
+    reader = response.body!.getReader();
+  };
+
+  return new ReadableStream<Uint8Array>({
+    async pull(controller): Promise<void> {
+      for (;;) {
+        let chunk: ReadableStreamReadResult<Uint8Array>;
+        try {
+          chunk = await reader.read();
+        } catch (err) {
+          await resume((err as Error).message);
+          continue;
+        }
+        if (chunk.done) {
+          if (resumable && received < total) {
+            await resume('the connection ended early');
+            continue;
+          }
+          controller.close();
+          return;
+        }
+        received += chunk.value.byteLength;
+        controller.enqueue(chunk.value);
+        return;
+      }
+    },
+    async cancel(reason): Promise<void> {
+      await reader.cancel(reason).catch(() => undefined);
+    },
+  });
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
