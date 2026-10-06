@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "mogenius Sandbox SDKs and API clients — Daytona-compatible sandboxes on kubernetes-sigs/agent-sandbox",
+  "description": "mogenius Sandbox SDKs and API clients \u2014 isolated sandboxes for AI agents and code execution on kubernetes-sigs/agent-sandbox",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

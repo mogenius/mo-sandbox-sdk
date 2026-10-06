@@ -26,7 +26,7 @@ interface FileInfoBody {
 }
 
 /**
- * Daytona's `FileSystem` on a sandbox. Paths are absolute inside the container
+ * The file system of a sandbox. Paths are absolute inside the container
  * or relative to its working directory. Every call goes through the platform
  * API to the operator, which runs the file operation inside the pod; nothing
  * is installed in the image for it.
@@ -86,7 +86,7 @@ export class FileSystem {
 
   /**
    * Writes `file` to `path`, creating parent folders. A string is written as
-   * UTF-8; Daytona also accepts a local file path here, which the browser-safe
+   * UTF-8; a local file path is not accepted here, which the browser-safe
    * SDK does not — read the file yourself and pass the Buffer.
    */
   async uploadFile(file: Buffer | Uint8Array | string, path: string): Promise<void> {

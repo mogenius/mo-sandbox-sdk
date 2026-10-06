@@ -6,18 +6,18 @@ import type { CodeLanguage, ExecuteResponse, SandboxInfo, SandboxState } from '.
 
 /** How often `waitUntil…` re-reads the sandbox. */
 const POLL_INTERVAL_MS = 1000;
-/** Daytona's default for `waitUntilStarted`. */
+/** Default for `waitUntilStarted`. */
 const DEFAULT_WAIT_SECONDS = 60;
 
 /**
  * A handle to one sandbox: its current data plus the actions on it. The
- * fields mirror Daytona's `Sandbox`; `refreshData()` reloads them from the
+ * fields are plain getters; `refreshData()` reloads them from the
  * platform. `process` runs commands and code inside, `fs` reads and writes
  * its files.
  */
 export class Sandbox {
   readonly process: Process;
-  /** Daytona's `FileSystem`: files inside the sandbox. */
+  /** Files inside the sandbox. */
   readonly fs: FileSystem;
   private info: SandboxInfo;
 
@@ -32,7 +32,7 @@ export class Sandbox {
   }
 
   /*******************************************************************************************************************
-   * fields (Daytona names)
+   * fields
    ******************************************************************************************************************/
 
   /** Name of the claim or sandbox object; what every route takes. */
@@ -45,21 +45,21 @@ export class Sandbox {
   get state(): SandboxState {
     return this.info.state;
   }
-  /** Why the state is `error` or still `starting`. Daytona: `errorReason`. */
+  /** Why the state is `error` or still `starting`. */
   get errorReason(): string | null {
     return this.info.stateReason;
   }
   get labels(): Record<string, string> {
     return this.info.labels;
   }
-  /** Profile the sandbox was made from. Daytona: `snapshot`. */
+  /** Profile the sandbox was made from (`snapshot`). */
   get snapshot(): string | null {
     return this.info.profile;
   }
   get image(): string | null {
     return this.info.image;
   }
-  /** Kubernetes namespace. Daytona: `target`. */
+  /** Kubernetes namespace (`target`). */
   get target(): string {
     return this.info.namespace;
   }
@@ -127,22 +127,22 @@ export class Sandbox {
     return this.info.labels;
   }
 
-  /** Lifetime in minutes from now; 0 removes the deadline. Daytona: `setAutoDeleteInterval`. */
+  /** Lifetime in minutes from now; 0 removes the deadline. */
   async setAutoDeleteInterval(minutes: number): Promise<void> {
     this.info = await this.api.patch<SandboxInfo>(this.path(), { ttlMinutes: Math.max(0, Math.floor(minutes)) });
   }
 
-  /** Daytona alias of `setAutoDeleteInterval`. */
+  /** Alias of `setAutoDeleteInterval`. */
   async setTtl(minutes: number): Promise<void> {
     await this.setAutoDeleteInterval(minutes);
   }
 
-  /** Home directory of the container user, asked from the running sandbox. Daytona: `getUserRootDir`. */
+  /** Home directory of the container user, asked from the running sandbox. */
   async getUserRootDir(): Promise<string> {
     return this.oneLine('printf %s "$HOME"');
   }
 
-  /** The container's working directory. Daytona: `getWorkDir`. */
+  /** The container's working directory. */
   async getWorkDir(): Promise<string> {
     return this.oneLine('pwd');
   }

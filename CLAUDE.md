@@ -3,7 +3,7 @@
 ## Project Overview
 
 `mo-sandbox-sdk` holds the SDKs and API clients for mogenius sandboxes (epic MOG-4647). The public surface
-follows `@daytona/sdk` so a user swaps the import and keeps the code. Sandboxes are `SandboxClaim` /
+is designed for drop-in use in agent frameworks. Sandboxes are `SandboxClaim` /
 `Sandbox` objects of kubernetes-sigs/agent-sandbox; the platform API (`mo-platform-api-service`, module
 `mo-sandbox-nest`) and the operator do the work. This repo talks HTTP to the platform only.
 
@@ -28,7 +28,7 @@ npm run format
 
 ## Rules
 
-- **Daytona names first.** Methods, parameters and error classes keep Daytona's names (`snapshot` = profile,
+- **Established names first.** Methods, parameters and error classes keep the names agent frameworks expect (`snapshot` = profile,
   `target` = namespace, `autoDeleteInterval` = lifetime). mogenius-only additions are marked in the docs.
 - **No parallel structures.** Routes, DTO shapes and error codes come from the platform
   (`@mogenius/client-sdk`, module `mo-sandbox`); mirror them, do not invent new ones here.

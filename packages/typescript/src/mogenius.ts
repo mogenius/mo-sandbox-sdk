@@ -20,7 +20,7 @@ interface ListResponseBody {
 }
 
 /**
- * Entry point, in Daytona's shape:
+ * Entry point:
  *
  *   import { Mogenius } from '@mogenius/sandbox';
  *   const mogenius = new Mogenius();                    // MOGENIUS_API_KEY etc. from the environment
@@ -135,7 +135,7 @@ export class Mogenius {
     await sandbox.delete();
   }
 
-  /** Daytona's snapshot service. Profiles are managed on the cluster's Sandboxes page for now (MOG-4696). */
+  /** Snapshot service. Profiles are managed on the cluster's Sandboxes page for now (MOG-4696). */
   get snapshot(): never {
     throw new MogeniusUnsupportedError(
       'Managing snapshots from the SDK',
@@ -143,7 +143,7 @@ export class Mogenius {
     );
   }
 
-  /** Daytona's volume service. Each sandbox has its own volume from the profile. */
+  /** Volume service. Each sandbox has its own volume from the profile. */
   get volume(): never {
     throw new MogeniusUnsupportedError(
       'Shared volumes',

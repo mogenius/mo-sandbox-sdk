@@ -1,5 +1,5 @@
 /**
- * Public types of `@mogenius/sandbox`. Names and shapes follow `@daytona/sdk`
+ * Public types of `@mogenius/sandbox`. Names and shapes follow what agent frameworks expect
  * wherever the behaviour is the same, so a ported program keeps compiling
  * after the import swap; mogenius-only fields are marked as such.
  */
@@ -17,10 +17,10 @@ export interface MogeniusConfig {
   /**
    * Kubernetes namespace the sandbox chart puts sandboxes in
    * (`sandboxes.namespace.name`). Env: `MOGENIUS_SANDBOX_NAMESPACE`. Default `agent-sandbox`.
-   * Daytona's `target` maps here.
+   * `target` maps here.
    */
   namespace?: string;
-  /** Alias of `namespace`, for programs that pass Daytona's `target`. */
+  /** Alias of `namespace`, for programs that pass `target`. */
   target?: string;
   /** Workspace to act through when the key has no cluster role. Header `workspace-name`. */
   workspaceName?: string;
@@ -42,7 +42,7 @@ export interface ResolvedConfig {
 /** Languages `codeRun` knows how to launch. */
 export type CodeLanguage = 'python' | 'typescript' | 'javascript';
 
-/** Shared `create()` parameters (Daytona's `CreateSandboxBaseParams`). */
+/** Shared `create()` parameters. */
 export interface CreateSandboxBaseParams {
   /** Name of the sandbox; generated from the profile when absent. */
   name?: string;
@@ -56,12 +56,12 @@ export interface CreateSandboxBaseParams {
   autoDeleteInterval?: number;
   /** Delete pod and storage when the lifetime ends or the sandbox is deleted (default true). */
   ephemeral?: boolean;
-  /** Daytona accepts these; mogenius has no idle timer yet (MOG-4697) and takes resources from the profile. */
+  /** Accepted for compatibility; mogenius has no idle timer yet (MOG-4697) and takes resources from the profile. */
   autoStopInterval?: number;
   autoArchiveInterval?: number;
 }
 
-/** Create from a profile (Daytona: from a snapshot). The profile's warm pool answers in seconds. */
+/** Create from a profile (`snapshot`). The profile's warm pool answers in seconds. */
 export interface CreateSandboxFromSnapshotParams extends CreateSandboxBaseParams {
   /** Profile = SandboxTemplate and SandboxWarmPool of that name. Default `default`. */
   snapshot?: string;
@@ -82,7 +82,7 @@ export interface CreateSandboxOptions {
   timeout?: number;
 }
 
-/** Sandbox states as the platform reports them. The values match Daytona's for shared meanings. */
+/** Sandbox states as the platform reports them. */
 export type SandboxState =
   'creating' | 'starting' | 'started' | 'stopping' | 'stopped' | 'error' | 'destroying' | 'destroyed';
 
@@ -107,7 +107,7 @@ export interface ListSandboxesOptions {
   cursor?: string;
 }
 
-/** Outcome of `executeCommand()` and `codeRun()` (Daytona's `ExecuteResponse`). */
+/** Outcome of `executeCommand()` and `codeRun()`. */
 export interface ExecuteResponse {
   /** Exit code of the command; 0 means success. */
   exitCode: number;
@@ -118,7 +118,7 @@ export interface ExecuteResponse {
 
 export interface ExecutionArtifacts {
   stdout: string;
-  /** mogenius only: stderr kept apart. Daytona folds it into `stdout`. */
+  /** stderr kept apart from `stdout`. */
   stderr: string;
   /** Charts matplotlib printed as artifacts; filled by `codeRun()` for Python. */
   charts?: Chart[];
@@ -133,7 +133,7 @@ export interface Chart {
   elements?: unknown[];
 }
 
-/** Options of `codeRun()` (Daytona's `CodeRunParams`). */
+/** Options of `codeRun()`. */
 export interface CodeRunParams {
   /** Arguments passed to the script (`sys.argv[1..]`, `process.argv[2..]`). */
   argv?: string[];
@@ -142,7 +142,7 @@ export interface CodeRunParams {
   language?: CodeLanguage;
 }
 
-/** The sandbox as the platform returns it. Daytona's `Sandbox` fields where they apply. */
+/** The sandbox as the platform returns it. */
 export interface SandboxInfo {
   id: string;
   name: string;
@@ -152,7 +152,7 @@ export interface SandboxInfo {
   state: SandboxState;
   stateReason: string | null;
   labels: Record<string, string>;
-  /** Profile the sandbox was made from; Daytona's `snapshot`. */
+  /** Profile the sandbox was made from (`snapshot`). */
   profile: string | null;
   image: string | null;
   /** The pod's name; null while creating. */
@@ -178,10 +178,10 @@ export interface ErrorBody {
 }
 
 /*********************************************************************************************************************
- * files (Daytona's FileSystem types)
+ * files
  ********************************************************************************************************************/
 
-/** One file or folder. Daytona's `FileInfo`. */
+/** One file or folder. */
 export interface FileInfo {
   name: string;
   /** mogenius only: absolute path inside the container. */
@@ -200,7 +200,7 @@ export interface FileInfo {
   mimeType?: string;
 }
 
-/** One entry of `uploadFiles()`. Daytona's `FileUpload`, without local file paths as source. */
+/** One entry of `uploadFiles()`; the source is bytes or text, not a local file path. */
 export interface FileUpload {
   source: Buffer | Uint8Array | string;
   /** Destination path inside the container. */
@@ -213,21 +213,21 @@ export interface UploadResult {
   error: string | null;
 }
 
-/** Daytona's `SearchFilesResponse`. */
+/** Result of `searchFiles()`. */
 export interface SearchFilesResponse {
   files: string[];
   /** mogenius only: more matched than were returned. */
   truncated: boolean;
 }
 
-/** One matching line of `findFiles()`. Daytona's `Match`. */
+/** One matching line of `findFiles()`. */
 export interface Match {
   file: string;
   line: number;
   content: string;
 }
 
-/** Daytona's `ReplaceResult`. */
+/** One file's outcome of `replaceInFiles()`. */
 export interface ReplaceResult {
   file: string;
   success: boolean;
@@ -241,7 +241,7 @@ export interface DownloadLink {
   expiresInSeconds: number;
 }
 
-/** Daytona's `setFilePermissions` parameters. */
+/** Parameters of `setFilePermissions()`. */
 export interface SetFilePermissionsParams {
   /** Octal (`755`) or symbolic (`u+x`). */
   mode?: string;

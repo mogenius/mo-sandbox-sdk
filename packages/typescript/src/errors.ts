@@ -3,7 +3,7 @@ import type { ErrorBody } from './types.js';
 /**
  * Base of every error the SDK throws. Carries what the platform said so a
  * caller can branch on `errorCode` or `statusCode` without parsing text.
- * The class hierarchy mirrors Daytona's with a `Mogenius` prefix.
+ * One class per failure kind, all prefixed `Mogenius`.
  */
 export class MogeniusError extends Error {
   readonly statusCode: number | undefined;
@@ -39,7 +39,7 @@ export class MogeniusTimeoutError extends MogeniusError {}
 export class MogeniusProcessExecutionTimeoutError extends MogeniusTimeoutError {}
 /** The cluster's operator is too old for this call (424). */
 export class MogeniusOperatorUpgradeRequiredError extends MogeniusError {}
-/** Daytona has it, Kubernetes sandboxes do not: fork, pause, archive, snapshots of running state, computer use. */
+/** Not available for Kubernetes sandboxes: fork, pause, archive, snapshots of running state, computer use. */
 export class MogeniusUnsupportedError extends MogeniusError {
   constructor(feature: string, alternative?: string) {
     super(

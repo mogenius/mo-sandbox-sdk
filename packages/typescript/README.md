@@ -1,6 +1,6 @@
 # @mogenius/sandbox
 
-TypeScript SDK for mogenius sandboxes with a Daytona-compatible surface.
+TypeScript SDK for mogenius sandboxes: lifecycle, commands, code runs and files inside sandbox pods.
 
 ```bash
 npm install @mogenius/sandbox
@@ -8,13 +8,13 @@ npm install @mogenius/sandbox
 
 ## Configuration
 
-| Option           | Environment variable        | Default                              |
-| ---------------- | --------------------------- | ------------------------------------ |
-| `apiKey`         | `MOGENIUS_API_KEY`          | required — an API key (`mo_pat:…`)   |
-| `apiUrl`         | `MOGENIUS_API_URL`          | `https://platform-api.mogenius.com`  |
-| `organizationId` | `MOGENIUS_ORGANIZATION_ID`  | taken from the key when it has one   |
-| `clusterId`      | `MOGENIUS_CLUSTER_ID`       | taken from the key when it has one   |
-| `namespace`      | `MOGENIUS_SANDBOX_NAMESPACE`| `agent-sandbox` (Daytona: `target`)  |
+| Option           | Environment variable         | Default                             |
+| ---------------- | ---------------------------- | ----------------------------------- |
+| `apiKey`         | `MOGENIUS_API_KEY`           | required — an API key (`mo_pat:…`)  |
+| `apiUrl`         | `MOGENIUS_API_URL`           | `https://platform-api.mogenius.com` |
+| `organizationId` | `MOGENIUS_ORGANIZATION_ID`   | taken from the key when it has one  |
+| `clusterId`      | `MOGENIUS_CLUSTER_ID`        | taken from the key when it has one  |
+| `namespace`      | `MOGENIUS_SANDBOX_NAMESPACE` | `agent-sandbox` (alias: `target`)   |
 
 ```ts
 import { Mogenius } from '@mogenius/sandbox';
@@ -57,7 +57,7 @@ cluster caps the maximum (300 seconds by default).
 
 ## Files
 
-`sandbox.fs` is Daytona's `FileSystem`. Paths are absolute inside the container or relative to its working
+`sandbox.fs` is the sandbox's file system. Paths are absolute inside the container or relative to its working
 directory (`/home/coder/project` in the default image).
 
 ```ts
@@ -90,18 +90,18 @@ file yourself first.
 ## Errors
 
 Every error extends `MogeniusError` and carries `statusCode`, `errorCode` and `source` (`api`, `operator`
-or `sdk`). The hierarchy mirrors Daytona's:
+or `sdk`). The hierarchy:
 
-| Class                                   | When                                                    |
-| --------------------------------------- | ------------------------------------------------------- |
-| `MogeniusNotFoundError`                 | sandbox, container or profile does not exist            |
-| `MogeniusConflictError`                 | sandbox not ready, suspended, or the name is taken      |
-| `MogeniusValidationError`               | bad label, env name or parameter                        |
-| `MogeniusProcessExecutionTimeoutError`  | the command ran past its timeout (extends `…Timeout…`)  |
-| `MogeniusTimeoutError`                  | a wait ran out                                          |
-| `MogeniusForbiddenError`                | no grant on the workspace or cluster, or cluster RBAC   |
-| `MogeniusOperatorUpgradeRequiredError`  | the cluster's operator is too old for this call         |
-| `MogeniusUnsupportedError`              | Daytona has it, Kubernetes pods do not (fork, archive…) |
+| Class                                  | When                                                   |
+| -------------------------------------- | ------------------------------------------------------ |
+| `MogeniusNotFoundError`                | sandbox, container or profile does not exist           |
+| `MogeniusConflictError`                | sandbox not ready, suspended, or the name is taken     |
+| `MogeniusValidationError`              | bad label, env name or parameter                       |
+| `MogeniusProcessExecutionTimeoutError` | the command ran past its timeout (extends `…Timeout…`) |
+| `MogeniusTimeoutError`                 | a wait ran out                                         |
+| `MogeniusForbiddenError`               | no grant on the workspace or cluster, or cluster RBAC  |
+| `MogeniusOperatorUpgradeRequiredError` | the cluster's operator is too old for this call        |
+| `MogeniusUnsupportedError`             | Not available for Kubernetes pods (fork, archive…)     |
 
 ## Not available
 

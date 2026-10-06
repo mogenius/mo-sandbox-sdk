@@ -14,7 +14,7 @@ const execResponse = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe('Process.executeCommand', () => {
-  it('posts to the toolbox route with Daytona positional parameters', async () => {
+  it('posts to the toolbox route with positional parameters', async () => {
     const { fetch, calls } = fakeFetch(
       { body: sandboxInfo() },
       {

@@ -195,7 +195,7 @@ describe('FileSystem', () => {
     expect(info.owner).toBe('root');
   });
 
-  it('searchFiles, findFiles and replaceInFiles follow Daytona shapes', async () => {
+  it('searchFiles, findFiles and replaceInFiles return the documented shapes', async () => {
     const { fetch, calls } = fakeFetch(
       { body: sandboxInfo() },
       { body: { files: ['/home/coder/project/a.py'], truncated: false } },

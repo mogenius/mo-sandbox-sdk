@@ -101,7 +101,7 @@ describe('errorFromResponse', () => {
   });
 
   // A process timeout is a timeout: `catch (e) { if (e instanceof MogeniusTimeoutError) }` covers both.
-  it('keeps the Daytona error hierarchy', () => {
+  it('keeps the error hierarchy', () => {
     const err = errorFromResponse(408, { errorCode: 'SANDBOX_EXEC_TIMEOUT', message: 'x' }, 'f');
     expect(err).toBeInstanceOf(MogeniusTimeoutError);
     expect(err).toBeInstanceOf(MogeniusError);

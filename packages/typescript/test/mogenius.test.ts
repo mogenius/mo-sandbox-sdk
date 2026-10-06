@@ -31,8 +31,8 @@ describe('Mogenius.create', () => {
     expect(call.body).toEqual({ waitForStart: true, waitTimeoutSeconds: 60 });
   });
 
-  // Daytona's parameter names travel through unchanged and land on the platform's fields.
-  it('maps Daytona create params onto the platform request', async () => {
+  // The public parameter names travel through unchanged and land on the platform's fields.
+  it('maps create params onto the platform request', async () => {
     const { fetch, calls } = fakeFetch({ status: 201, body: sandboxInfo({ kind: 'Sandbox', id: 'custom' }) });
     const mogenius = new Mogenius({ ...CONFIG, fetch, namespace: 'team-a' });
 
@@ -189,7 +189,7 @@ describe('Sandbox lifecycle', () => {
     expect(sandbox.expiresAt).toBe('2026-10-01T13:00:00.000Z');
   });
 
-  it('delete sends DELETE and exposes Daytona field names', async () => {
+  it('delete sends DELETE and exposes the public field names', async () => {
     const { fetch, calls } = fakeFetch(
       { body: sandboxInfo({ labels: { a: '1' } }) },
       { body: sandboxInfo({ state: 'destroying' }) },

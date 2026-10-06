@@ -1,7 +1,7 @@
 {
   "name": "@mogenius/sandbox",
   "version": "0.1.0",
-  "description": "TypeScript SDK for mogenius sandboxes — Daytona-compatible surface: swap the import, keep the code",
+  "description": "TypeScript SDK for mogenius sandboxes: lifecycle, commands, code runs and files inside sandbox pods on your own cluster",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -28,7 +28,6 @@
     "mogenius",
     "sandbox",
     "agent-sandbox",
-    "daytona",
     "kubernetes",
     "ai-agents"
   ],
@@ -40,7 +39,8 @@
     "lint:fix": "eslint src test --fix",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "docs": "typedoc"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",
@@ -51,6 +51,7 @@
     "eslint-plugin-prettier": "^5.5.6",
     "prettier": "^3.8.2",
     "tsup": "^8.5.1",
+    "typedoc": "^0.28.20",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.70.0",
     "vitest": "^3.2.4"

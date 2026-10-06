@@ -1,5 +1,4 @@
 // Run with: MOGENIUS_API_KEY=mo_pat:... npx tsx examples/basic.ts
-// The same program against Daytona differs in one line: the import.
 import { Mogenius } from '@mogenius/sandbox';
 
 const mogenius = new Mogenius();

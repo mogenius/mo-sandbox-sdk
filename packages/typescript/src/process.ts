@@ -1,7 +1,7 @@
 import type { ApiClient } from './api-client.js';
 import type { Chart, CodeLanguage, CodeRunParams, ExecuteResponse } from './types.js';
 
-/** Daytona's default when a call names no timeout. */
+/** Default when a call names no timeout. */
 export const DEFAULT_COMMAND_TIMEOUT_SECONDS = 10;
 
 /** What the platform answers to the toolbox exec route. */
@@ -14,11 +14,11 @@ interface ExecuteCommandResponseBody {
   durationMs: number;
 }
 
-/** Marker a Python run prints around each chart (Daytona's convention, kept so parsers carry over). */
+/** Marker a Python run prints around each chart (a common convention, kept so existing parsers carry over). */
 const CHART_MARKER = /dtn_artifact_k39fd2:(\{.*?\})\n?/g;
 
 /**
- * Daytona's `Process` on a sandbox: run a command or a snippet of code and
+ * Processes of a sandbox: run a command or a snippet of code and
  * get exit code and output back. Everything goes through the platform API to
  * the operator, which executes inside the pod without a TTY — no agent in the
  * image, no open port.

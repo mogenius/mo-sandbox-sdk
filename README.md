@@ -4,8 +4,8 @@ SDKs and API clients for **mogenius sandboxes**: isolated, short-lived environme
 execution, running as pods in your own Kubernetes cluster on top of
 [kubernetes-sigs/agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox).
 
-The SDK surface follows [Daytona](https://github.com/daytonaio/daytona)'s. Moving a program over means
-swapping the import; classes, methods, parameters and error classes keep their names.
+The SDK is built for drop-in use in agent frameworks: a client, a `Sandbox` with `process` and `fs`, and a
+small error hierarchy keyed by status code.
 
 ```ts
 import { Mogenius } from '@mogenius/sandbox';
@@ -49,4 +49,4 @@ Examples live in [`examples/`](examples); copy `.env.example` to `.env`, load it
 
 ## License
 
-Apache-2.0. Daytona's SDK structure is followed, not copied; see their repository for their license.
+Apache-2.0.
