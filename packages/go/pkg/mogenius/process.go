@@ -22,7 +22,7 @@ type ProcessService struct {
 	sandbox *Sandbox
 }
 
-// executeResponseBody is what the platform answers to the toolbox exec route.
+// executeResponseBody is what the platform answers to the pod exec route.
 type executeResponseBody struct {
 	ExitCode  int    `json:"exitCode"`
 	Result    string `json:"result"`
@@ -32,7 +32,7 @@ type executeResponseBody struct {
 	} `json:"artifacts"`
 }
 
-// execRequest is the body of the toolbox exec route, and the first frame of an exec stream.
+// execRequest is the body of the pod exec route, and the first frame of an exec stream.
 func execRequest(command string, opts *options.ExecuteCommand) map[string]any {
 	body := map[string]any{"command": command}
 	if opts.Cwd != nil && *opts.Cwd != "" {
@@ -48,7 +48,18 @@ func execRequest(command string, opts *options.ExecuteCommand) map[string]any {
 	if timeout > 0 {
 		body["timeout"] = ceilSeconds(timeout)
 	}
+	if container := containerOf(opts.Container); container != "" {
+		body["container"] = container
+	}
 	return body
+}
+
+// containerOf is the container an option names; empty means the sandbox's own.
+func containerOf(option *string) string {
+	if option == nil {
+		return ""
+	}
+	return *option
 }
 
 // ExecuteCommand runs a shell command line. Pipes, && and quoting behave as
@@ -60,8 +71,19 @@ func (p *ProcessService) ExecuteCommand(ctx context.Context, command string, opt
 	for _, opt := range opts {
 		opt(execOpts)
 	}
+	podName, container, err := p.sandbox.pod(ctx)
+	if err != nil {
+		return nil, err
+	}
+	request := execRequest(command, execOpts)
+	// the pod route would take the pod's first container; a sandbox means its own
+	if _, chosen := request["container"]; !chosen && container != "" {
+		request["container"] = container
+	}
+	// commands are a pod feature: the platform serves them on its pod route
 	var body executeResponseBody
-	if err := p.sandbox.api.post(ctx, p.sandbox.path()+"/toolbox/process/execute", nil, execRequest(command, execOpts), &body); err != nil {
+	path := "/resource/exec/" + segment(p.sandbox.Namespace) + "/" + segment(podName)
+	if err := p.sandbox.api.post(ctx, path, nil, request, &body); err != nil {
 		return nil, err
 	}
 	artifacts := &types.ExecutionArtifacts{}
@@ -74,8 +96,9 @@ func (p *ProcessService) ExecuteCommand(ctx context.Context, command string, opt
 // CodeRun runs a snippet of code with the sandbox's default language (or
 // WithCodeRunLanguage): Python through python3, TypeScript through tsx,
 // JavaScript through node. The code travels base64-encoded, so quotes and
-// newlines need no escaping. Charts a Python run prints come back in
-// Artifacts.Charts.
+// newlines need no escaping. Figures a Python run draws with matplotlib come
+// back as PNG charts in Artifacts.Charts — on plt.show() and for what is
+// still open at the end.
 func (p *ProcessService) CodeRun(ctx context.Context, code string, opts ...func(*options.CodeRun)) (*types.ExecuteResponse, error) {
 	runOpts := &options.CodeRun{}
 	for _, opt := range opts {
@@ -96,6 +119,9 @@ func (p *ProcessService) CodeRun(ctx context.Context, code string, opts ...func(
 	execOpts := []func(*options.ExecuteCommand){options.WithCommandEnv(params.Env)}
 	if runOpts.Timeout != nil {
 		execOpts = append(execOpts, options.WithExecuteTimeout(*runOpts.Timeout))
+	}
+	if container := containerOf(runOpts.Container); container != "" {
+		execOpts = append(execOpts, options.WithContainer(container))
 	}
 	response, err := p.ExecuteCommand(ctx, command, execOpts...)
 	if err != nil || language != types.CodeLanguagePython {
@@ -135,23 +161,28 @@ func (p *ProcessService) ExecuteCommandStream(ctx context.Context, command strin
 		for _, opt := range opts {
 			opt(execOpts)
 		}
-		podName := p.sandbox.podName()
-		if podName == "" {
-			yield(types.ExecEvent{}, sdkConflict("The sandbox has no pod yet: wait until it is started before streaming a command."))
+		podName, sandboxContainer, err := p.sandbox.pod(ctx)
+		if err != nil {
+			yield(types.ExecEvent{}, err)
 			return
 		}
-		// the same body as the toolbox route, sent once the gateway asks for it
+		// the same body as the exec route, sent once the gateway asks for it
 		request, err := json.Marshal(execRequest(command, execOpts))
 		if err != nil {
 			yield(types.ExecEvent{}, sdkerrors.NewMogeniusError("The command is not JSON: "+err.Error(), 0, nil))
 			return
+		}
+		container := containerOf(execOpts.Container)
+		if container == "" {
+			container = sandboxContainer
 		}
 		conn, err := p.sandbox.api.openStream(ctx, map[string]string{
 			"type":      "CLUSTER__POD_EXEC",
 			"cmd":       "exec",
 			"namespace": p.sandbox.Namespace,
 			"podName":   podName,
-			"container": p.sandbox.ContainerName,
+			"container": container,
+			"binary":    "1",
 		})
 		if err != nil {
 			yield(types.ExecEvent{}, err)
@@ -191,16 +222,24 @@ type sessionExecuteBody struct {
 // Commands run in it one at a time. The session lives until DeleteSession,
 // until it has idled for the cluster's timeout (30 minutes by default), or
 // until the sandbox stops. sessionID is a name of your choice, unique within
-// the sandbox.
-func (p *ProcessService) CreateSession(ctx context.Context, sessionID string) error {
-	path, err := p.sessionBase()
+// the sandbox; WithSessionContainer picks another container than the sandbox's.
+func (p *ProcessService) CreateSession(ctx context.Context, sessionID string, opts ...func(*options.CreateSession)) error {
+	path, err := p.sessionBase(ctx)
 	if err != nil {
 		return err
 	}
-	body := map[string]any{"sessionId": sessionID}
+	sessionOpts := &options.CreateSession{}
+	for _, opt := range opts {
+		opt(sessionOpts)
+	}
 	// the pod route would take the pod's first container; a sandbox means its own
-	if p.sandbox.ContainerName != "" {
-		body["container"] = p.sandbox.ContainerName
+	container := containerOf(sessionOpts.Container)
+	if container == "" {
+		container = p.sandbox.ContainerName
+	}
+	body := map[string]any{"sessionId": sessionID}
+	if container != "" {
+		body["container"] = container
 	}
 	return p.sandbox.api.post(ctx, path, nil, body, nil)
 }
@@ -209,7 +248,7 @@ func (p *ProcessService) CreateSession(ctx context.Context, sessionID string) er
 // command and, once ended, exitCode), plus mogenius' container, createdAt
 // and lastUsedAt.
 func (p *ProcessService) GetSession(ctx context.Context, sessionID string) (map[string]any, error) {
-	path, err := p.sessionPath(sessionID)
+	path, err := p.sessionPath(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +262,7 @@ func (p *ProcessService) GetSession(ctx context.Context, sessionID string) (map[
 // ListSessions returns the sessions of this sandbox that your key opened and
 // that are still running, shaped like GetSession.
 func (p *ProcessService) ListSessions(ctx context.Context) ([]map[string]any, error) {
-	path, err := p.sessionBase()
+	path, err := p.sessionBase(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +279,7 @@ func (p *ProcessService) ListSessions(ctx context.Context) ([]map[string]any, er
 
 // DeleteSession ends the session's shell. A command still running in it is stopped with it.
 func (p *ProcessService) DeleteSession(ctx context.Context, sessionID string) error {
-	path, err := p.sessionPath(sessionID)
+	path, err := p.sessionPath(ctx, sessionID)
 	if err != nil {
 		return err
 	}
@@ -256,7 +295,7 @@ func (p *ProcessService) DeleteSession(ctx context.Context, sessionID string) er
 // platform uses. suppressInputEcho is accepted for compatibility: input is
 // never echoed. An exit in the command ends the shell and with it the session.
 func (p *ProcessService) ExecuteSessionCommand(ctx context.Context, sessionID, command string, runAsync bool, suppressInputEcho bool) (map[string]any, error) {
-	path, err := p.sessionPath(sessionID)
+	path, err := p.sessionPath(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +320,7 @@ func (p *ProcessService) ExecuteSessionCommand(ctx context.Context, sessionID, c
 
 // GetSessionCommand returns id, command and, once it has ended, exitCode.
 func (p *ProcessService) GetSessionCommand(ctx context.Context, sessionID, commandID string) (map[string]any, error) {
-	path, err := p.sessionPath(sessionID)
+	path, err := p.sessionPath(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -294,7 +333,7 @@ func (p *ProcessService) GetSessionCommand(ctx context.Context, sessionID, comma
 
 // GetSessionCommandLogs returns what the command has printed so far.
 func (p *ProcessService) GetSessionCommandLogs(ctx context.Context, sessionID, commandID string) (*types.SessionCommandLogsResponse, error) {
-	path, err := p.sessionPath(sessionID)
+	path, err := p.sessionPath(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -319,9 +358,9 @@ func (p *ProcessService) GetSessionCommandLogsStream(ctx context.Context, sessio
 			close(stderr)
 		}
 	}()
-	podName := p.sandbox.podName()
-	if podName == "" {
-		return sdkConflict("The sandbox has no pod: there is no session to follow.")
+	podName, _, err := p.sandbox.pod(ctx)
+	if err != nil {
+		return err
 	}
 	conn, err := p.sandbox.api.openStream(ctx, map[string]string{
 		"type":      "CLUSTER__POD_SESSION_LOG",
@@ -330,6 +369,7 @@ func (p *ProcessService) GetSessionCommandLogsStream(ctx context.Context, sessio
 		"podName":   podName,
 		"sessionId": sessionID,
 		"cmdId":     commandID,
+		"binary":    "1",
 	})
 	if err != nil {
 		return err
@@ -374,7 +414,7 @@ func (p *ProcessService) GetSessionCommandLogsStream(ctx context.Context, sessio
 // in the session — what read or an interactive program is waiting for.
 // Written verbatim: end a line with \n.
 func (p *ProcessService) SendSessionCommandInput(ctx context.Context, sessionID, commandID, data string) error {
-	path, err := p.sessionPath(sessionID)
+	path, err := p.sessionPath(ctx, sessionID)
 	if err != nil {
 		return err
 	}
@@ -383,19 +423,19 @@ func (p *ProcessService) SendSessionCommandInput(ctx context.Context, sessionID,
 
 // sessionBase: sessions belong to the pod, not to the sandbox object, so the
 // platform serves them on its pod routes.
-func (p *ProcessService) sessionBase() (string, error) {
-	podName := p.sandbox.podName()
-	if podName == "" {
-		return "", sdkConflict("The sandbox has no pod yet: wait until it is started before using sessions.")
+func (p *ProcessService) sessionBase(ctx context.Context) (string, error) {
+	podName, _, err := p.sandbox.pod(ctx)
+	if err != nil {
+		return "", err
 	}
 	return "/resource/session/" + segment(p.sandbox.Namespace) + "/" + segment(podName), nil
 }
 
-func (p *ProcessService) sessionPath(sessionID string) (string, error) {
+func (p *ProcessService) sessionPath(ctx context.Context, sessionID string) (string, error) {
 	if sessionID == "" {
 		return "", sdkerrors.NewMogeniusValidationError("A session id is required.", nil)
 	}
-	base, err := p.sessionBase()
+	base, err := p.sessionBase(ctx)
 	if err != nil {
 		return "", err
 	}

@@ -1,5 +1,5 @@
 import type { ApiClient } from './api-client.js';
-import { MogeniusConflictError, MogeniusError, MogeniusNotFoundError, MogeniusTimeoutError } from './errors.js';
+import { MogeniusError, MogeniusNotFoundError, MogeniusTimeoutError } from './errors.js';
 import { PYTHON_BOOTSTRAP } from './python-bootstrap.js';
 import type {
   Chart,
@@ -28,7 +28,7 @@ const STREAM_TIMEOUT = 'TIMEOUT';
 // the gateway asks for the command once the connection is authorized; it does not travel in the URL
 const STREAM_REQUEST_PROMPT = 'SEND_EXEC_REQUEST';
 
-/** What the platform answers to the toolbox exec route. */
+/** What the platform answers to the pod exec route. */
 interface ExecuteCommandResponseBody {
   exitCode: number;
   result: string;
@@ -70,10 +70,9 @@ export class Process {
   constructor(
     private readonly api: ApiClient,
     private readonly namespace: string,
-    private readonly sandboxId: string,
     private readonly defaultLanguage: CodeLanguage,
-    /** Where the sandbox runs right now; streams address the pod directly. */
-    private readonly pod: () => { podName: string | null; containerName: string },
+    /** Where the sandbox runs right now; every call addresses the pod directly. */
+    private readonly pod: () => Promise<{ podName: string; containerName: string }>,
   ) {}
 
   /**
@@ -90,33 +89,26 @@ export class Process {
    * @param cwd working directory inside the container; the container's own when absent
    * @param env environment variables for this run; keys must be shell identifiers
    * @param timeout seconds until the command is stopped (default 10); the platform caps it
+   * @param container container to run in; the sandbox's own when absent
    */
   async *executeCommandStream(
     command: string,
     cwd?: string,
     env?: Record<string, string>,
     timeout: number = DEFAULT_COMMAND_TIMEOUT_SECONDS,
+    container?: string,
   ): AsyncGenerator<ExecEvent, void, void> {
-    const { podName, containerName } = this.pod();
-    if (!podName) {
-      throw new MogeniusConflictError(
-        'The sandbox has no pod yet: wait until it is started before streaming a command.',
-      );
-    }
+    const { podName, containerName } = await this.pod();
     const socket = this.api.openStream({
       type: 'CLUSTER__POD_EXEC',
       cmd: 'exec',
       namespace: this.namespace,
       podName,
-      container: containerName,
+      container: container || containerName,
+      binary: 1,
     });
-    // the same body as the toolbox route, sent once the gateway asks for it
-    const request = JSON.stringify({
-      command,
-      ...(cwd ? { cwd } : {}),
-      ...(env && Object.keys(env).length > 0 ? { env } : {}),
-      ...(timeout > 0 ? { timeout: Math.ceil(timeout) } : {}),
-    });
+    // the same body as the exec route, sent once the gateway asks for it
+    const request = JSON.stringify(execRequest(command, cwd, env, timeout, container));
 
     yield* this.streamEvents(socket, request);
   }
@@ -194,9 +186,9 @@ export class Process {
    * @param container mogenius: container the shell runs in; the sandbox's own when absent
    */
   async createSession(sessionId: string, container?: string): Promise<SessionInfo> {
-    const path = this.sessionPath();
+    const path = await this.sessionPath();
     // the pod route would take the pod's first container; a sandbox means its own
-    const target = container || this.pod().containerName;
+    const target = container || (await this.pod()).containerName;
     const body = await this.api.post<SessionInfoBody>(path, {
       sessionId,
       ...(target ? { container: target } : {}),
@@ -205,18 +197,18 @@ export class Process {
   }
 
   async getSession(sessionId: string): Promise<SessionInfo> {
-    return toSessionInfo(await this.api.get<SessionInfoBody>(this.sessionPath(sessionId)));
+    return toSessionInfo(await this.api.get<SessionInfoBody>(await this.sessionPath(sessionId)));
   }
 
   /** Sessions of this sandbox that your key opened and that are still running. */
   async listSessions(): Promise<SessionInfo[]> {
-    const body = await this.api.get<SessionInfoBody[]>(this.sessionPath());
+    const body = await this.api.get<SessionInfoBody[]>(await this.sessionPath());
     return body.map(toSessionInfo);
   }
 
   /** Ends the session's shell. A command still running in it is stopped with it. */
   async deleteSession(sessionId: string): Promise<void> {
-    await this.api.delete<void>(this.sessionPath(sessionId));
+    await this.api.delete<void>(await this.sessionPath(sessionId));
   }
 
   /**
@@ -228,7 +220,7 @@ export class Process {
    * in the command ends the shell and with it the session.
    */
   async executeSessionCommand(sessionId: string, request: SessionExecuteRequest): Promise<SessionExecuteResponse> {
-    const body = await this.api.post<SessionExecuteResponseBody>(`${this.sessionPath(sessionId)}/exec`, {
+    const body = await this.api.post<SessionExecuteResponseBody>(`${await this.sessionPath(sessionId)}/exec`, {
       command: request.command,
       ...(request.runAsync ? { runAsync: true } : {}),
       ...(request.timeout && request.timeout > 0 ? { timeout: Math.ceil(request.timeout) } : {}),
@@ -242,7 +234,9 @@ export class Process {
 
   async getSessionCommand(sessionId: string, cmdId: string): Promise<SessionCommand> {
     return toSessionCommand(
-      await this.api.get<SessionCommandBody>(`${this.sessionPath(sessionId)}/command/${encodeURIComponent(cmdId)}`),
+      await this.api.get<SessionCommandBody>(
+        `${await this.sessionPath(sessionId)}/command/${encodeURIComponent(cmdId)}`,
+      ),
     );
   }
 
@@ -261,14 +255,11 @@ export class Process {
   ): Promise<string | void> {
     if (!onLogs) {
       const body = await this.api.get<{ output: string }>(
-        `${this.sessionPath(sessionId)}/command/${encodeURIComponent(cmdId)}/logs`,
+        `${await this.sessionPath(sessionId)}/command/${encodeURIComponent(cmdId)}/logs`,
       );
       return body.output;
     }
-    const { podName } = this.pod();
-    if (!podName) {
-      throw new MogeniusConflictError('The sandbox has no pod: there is no session to follow.');
-    }
+    const { podName } = await this.pod();
     const socket = this.api.openStream({
       type: 'CLUSTER__POD_SESSION_LOG',
       cmd: 'session-log',
@@ -276,6 +267,7 @@ export class Process {
       podName,
       sessionId,
       cmdId,
+      binary: 1,
     });
     const decoder = new TextDecoder();
     for await (const event of this.streamEvents(socket)) {
@@ -295,15 +287,14 @@ export class Process {
    * end a line with `\n`.
    */
   async sendSessionCommandInput(sessionId: string, cmdId: string, data: string): Promise<void> {
-    await this.api.post<void>(`${this.sessionPath(sessionId)}/command/${encodeURIComponent(cmdId)}/input`, { data });
+    await this.api.post<void>(`${await this.sessionPath(sessionId)}/command/${encodeURIComponent(cmdId)}/input`, {
+      data,
+    });
   }
 
   /** Sessions belong to the pod, not to the sandbox object: the platform serves them on its pod routes. */
-  private sessionPath(sessionId?: string): string {
-    const { podName } = this.pod();
-    if (!podName) {
-      throw new MogeniusConflictError('The sandbox has no pod yet: wait until it is started before using sessions.');
-    }
+  private async sessionPath(sessionId?: string): Promise<string> {
+    const { podName } = await this.pod();
     const base = `/resource/session/${encodeURIComponent(this.namespace)}/${encodeURIComponent(podName)}`;
     return sessionId === undefined ? base : `${base}/${encodeURIComponent(sessionId)}`;
   }
@@ -317,21 +308,20 @@ export class Process {
    * @param cwd working directory inside the container; the container's own when absent
    * @param env environment variables for this run; keys must be shell identifiers
    * @param timeout seconds until the command is stopped (default 10); the platform caps it
+   * @param container mogenius: container to run in; the sandbox's own when absent
    */
   async executeCommand(
     command: string,
     cwd?: string,
     env?: Record<string, string>,
     timeout: number = DEFAULT_COMMAND_TIMEOUT_SECONDS,
+    container?: string,
   ): Promise<ExecuteResponse> {
+    const { podName, containerName } = await this.pod();
+    // commands are a pod feature: the platform serves them on its pod route
     const body = await this.api.post<ExecuteCommandResponseBody>(
-      `/sandbox/${encodeURIComponent(this.namespace)}/${encodeURIComponent(this.sandboxId)}/toolbox/process/execute`,
-      {
-        command,
-        ...(cwd ? { cwd } : {}),
-        ...(env && Object.keys(env).length > 0 ? { env } : {}),
-        ...(timeout > 0 ? { timeout: Math.ceil(timeout) } : {}),
-      },
+      `/resource/exec/${encodeURIComponent(this.namespace)}/${encodeURIComponent(podName)}`,
+      execRequest(command, cwd, env, timeout, container || containerName),
     );
     return {
       exitCode: body.exitCode,
@@ -358,6 +348,7 @@ export class Process {
       undefined,
       params?.env,
       timeout,
+      params?.container,
     );
     if (language !== 'python') {
       return response;
@@ -369,6 +360,23 @@ export class Process {
       artifacts: { stdout: text, stderr: response.artifacts?.stderr ?? '', ...(charts.length > 0 ? { charts } : {}) },
     };
   }
+}
+
+/** The body of the pod exec route, and the first frame of an exec stream. */
+function execRequest(
+  command: string,
+  cwd: string | undefined,
+  env: Record<string, string> | undefined,
+  timeout: number,
+  container: string | undefined,
+): Record<string, unknown> {
+  return {
+    command,
+    ...(cwd ? { cwd } : {}),
+    ...(env && Object.keys(env).length > 0 ? { env } : {}),
+    ...(timeout > 0 ? { timeout: Math.ceil(timeout) } : {}),
+    ...(container ? { container } : {}),
+  };
 }
 
 function toSessionCommand(body: SessionCommandBody): SessionCommand {
@@ -390,7 +398,7 @@ function toSessionInfo(body: SessionInfoBody): SessionInfo {
 }
 
 /** The error a stream that closed without an exit code stands for. */
-function streamCloseError(event: CloseEvent, streamUrl: string): MogeniusError {
+export function streamCloseError(event: CloseEvent, streamUrl: string): MogeniusError {
   const reason = event.reason || '';
   if (reason === 'POD_DOES_NOT_EXIST') {
     return new MogeniusNotFoundError('The sandbox pod does not exist (any more).', { source: 'operator' });

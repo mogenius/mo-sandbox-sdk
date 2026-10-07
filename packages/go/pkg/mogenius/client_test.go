@@ -98,6 +98,10 @@ func TestCreateFromASnapshot(t *testing.T) {
 		sandbox.ContainerName != "sandbox" || sandbox.Kind != "SandboxClaim" {
 		t.Fatalf("unexpected sandbox %+v", sandbox)
 	}
+	if *sandbox.ServiceFQDN != "default-k27tp.agent-sandbox.svc.cluster.local" || *sandbox.SandboxName != "default-k27tp" ||
+		*sandbox.OperatingMode != "Running" || *sandbox.CreatedBy != "jane@example.com" {
+		t.Fatalf("service fields %v %v %v %v", sandbox.ServiceFQDN, sandbox.SandboxName, sandbox.OperatingMode, sandbox.CreatedBy)
+	}
 }
 
 func TestCreateFromAnImageWithoutWaiting(t *testing.T) {

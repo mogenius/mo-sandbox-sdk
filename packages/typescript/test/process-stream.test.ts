@@ -187,3 +187,25 @@ describe('Process.executeCommandStream', () => {
     void sandbox;
   });
 });
+
+describe('Process.executeCommandStream in another container', () => {
+  it('addresses that container in the query and the request', async () => {
+    FakeWebSocket.instances = [];
+    const { fetch } = fakeFetch({ body: sandboxInfo() });
+    const sandbox = await new Mogenius({
+      ...CONFIG,
+      fetch,
+      streamUrl: 'wss://stream.test',
+      webSocket: FakeWebSocket as unknown as typeof WebSocket,
+    }).get('default-abc12');
+    const stream = sandbox.process.executeCommandStream('ls', undefined, undefined, undefined, 'sidecar');
+    const first = stream.next();
+    await Promise.resolve();
+    const socket = FakeWebSocket.instances[0]!;
+
+    expect(socket.url.searchParams.get('container')).toBe('sidecar');
+    socket.frame('SEND_EXEC_REQUEST');
+    expect(JSON.parse(socket.sent[0]!)).toMatchObject({ command: 'ls', container: 'sidecar' });
+    await finish(socket, stream, first);
+  });
+});

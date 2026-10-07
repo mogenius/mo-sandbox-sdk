@@ -147,13 +147,14 @@ describe('Process sessions', () => {
     expect(chunks.join('')).toBe('1\nwarn\n2\n');
   });
 
-  it('refuses sessions of a sandbox without a pod before asking the platform', async () => {
+  it('refuses sessions of a sandbox that still has no pod after reading it again', async () => {
     const { fetch, calls } = fakeFetch({ body: sandboxInfo({ state: 'stopped', podName: null }) });
     const sandbox = await new Mogenius({ ...CONFIG, fetch }).get('default-abc12');
 
     await expect(sandbox.process.createSession('dev')).rejects.toBeInstanceOf(MogeniusConflictError);
     await expect(sandbox.process.listSessions()).rejects.toBeInstanceOf(MogeniusConflictError);
-    expect(calls).toHaveLength(1);
+    // only the sandbox itself was read, no session route was asked
+    expect(calls.every((call) => call.url.pathname === '/sandbox/agent-sandbox/default-abc12')).toBe(true);
   });
 
   it('maps session error codes onto the error classes', async () => {

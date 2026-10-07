@@ -38,6 +38,8 @@ export type {
   SessionExecuteResponse,
   Chart,
   CodeRunParams,
+  Tunnel,
+  TunnelOptions,
   DownloadLink,
   ErrorBody,
   FileInfo,

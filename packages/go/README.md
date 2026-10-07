@@ -44,8 +44,8 @@ explicit values, and empty fields still fall back to the environment.
 | `StreamURL`      | `MOGENIUS_STREAM_URL`        | `wss://k8s-cmd-stream.mogenius.com` |
 | `HTTPClient`     | —                            | `http.DefaultClient`                |
 
-Streams (`ExecuteCommandStream`, `GetSessionCommandLogsStream`) need `OrganizationID` and `ClusterID` even for
-keys with a single scope: the stream gateway does not take them from the key.
+Streams and tunnels (`ExecuteCommandStream`, `GetSessionCommandLogsStream`, `Tunnel`) need `OrganizationID` and
+`ClusterID` even for keys with a single scope: the stream gateway does not take them from the key.
 
 ## Sandboxes
 
@@ -73,7 +73,8 @@ sandbox, err = client.Create(ctx, types.ImageParams{Image: "python:3.12-slim"}, 
 | `sandbox.RefreshData`                                    | reload the fields                                  |
 | `sandbox.GetUserHomeDir`, `sandbox.GetWorkingDir`       | asked from the running sandbox                     |
 
-mogenius fields on `Sandbox`: `Namespace`, `Image`, `PodName`, `ContainerName`, `ExpiresAt`, `Ephemeral`, `Kind`.
+mogenius fields on `Sandbox`: `Namespace`, `Image`, `PodName`, `ContainerName`, `ServiceFQDN` (the address inside
+the cluster), `SandboxName`, `OperatingMode`, `CreatedBy`, `ExpiresAt`, `Ephemeral`, `Kind`.
 
 ## Commands and code
 
@@ -90,6 +91,9 @@ run, err := sandbox.Process.CodeRun(ctx, `print("hello")`) // python3; tsx and n
 Commands are stateless (`cd` and `export` do not carry over) and default to a 10 s timeout. Figures a Python run
 draws with matplotlib come back as PNG charts (type, title, image) in `Artifacts.Charts` — on `plt.show()` and for
 what is still open at the end; the image needs matplotlib, nothing else.
+
+Everything runs in the sandbox's own container unless you name another one of its pod: `options.WithContainer`
+(commands and streams), `options.WithCodeRunContainer`, `options.WithSessionContainer`.
 
 mogenius: `ExecuteCommandStream` delivers the output while the command runs. Leaving the loop early stops the
 command in the container.
@@ -123,6 +127,24 @@ err = sandbox.Process.DeleteSession(ctx, "build")
 
 `GetSessionCommandLogsStream` follows a command live into two channels and closes them when it ends;
 `SendSessionCommandInput` (mogenius) writes to the command's stdin.
+
+## Tunnels
+
+mogenius: `Tunnel` forwards TCP connections to a port inside the sandbox through the platform's stream gateway, the
+way a port-forward does — for an HTTP server, a WebSocket, gRPC or a database in the sandbox. Only bytes travel; the
+sandbox sees no credentials. Inside the cluster you do not need one: use `ServiceFQDN`.
+
+```go
+tunnel, err := sandbox.Tunnel(ctx, 8000) // listens on 127.0.0.1, options.WithLocalPort fixes the port
+defer tunnel.Close()
+response, err := http.Get(tunnel.URL() + "/health")
+
+// or in-process, without a local port
+client := &http.Client{Transport: &http.Transport{DialContext: tunnel.DialContext}}
+```
+
+A dropped gateway connection is re-established on its own (connections open at that moment break); when the pod is
+gone the tunnel ends, and `Done()` and `Err()` say so.
 
 ## Files
 
@@ -182,4 +204,5 @@ The examples run against a real platform with the root `.env`:
 set -a; . ../../.env; set +a
 go run ./examples/basic
 go run ./examples/stream
+go run ./examples/tunnel
 ```

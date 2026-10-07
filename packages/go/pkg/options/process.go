@@ -14,6 +14,8 @@ type ExecuteCommand struct {
 	Env map[string]string
 	// Timeout until the command is stopped. Default: 10 s; the platform caps it.
 	Timeout *time.Duration
+	// mogenius: Container to run in; the sandbox's own when nil.
+	Container *string
 }
 
 func WithCwd(cwd string) func(*ExecuteCommand) {
@@ -34,6 +36,12 @@ func WithExecuteTimeout(timeout time.Duration) func(*ExecuteCommand) {
 	}
 }
 
+func WithContainer(container string) func(*ExecuteCommand) {
+	return func(opts *ExecuteCommand) {
+		opts.Container = &container
+	}
+}
+
 // CodeRun are the options of CodeRun.
 type CodeRun struct {
 	// Params are the script's arguments and environment.
@@ -42,6 +50,8 @@ type CodeRun struct {
 	Timeout *time.Duration
 	// Language overrides the sandbox's default language for this run.
 	Language types.CodeLanguage
+	// mogenius: Container to run in; the sandbox's own when nil.
+	Container *string
 }
 
 func WithCodeRunParams(params types.CodeRunParams) func(*CodeRun) {
@@ -59,5 +69,23 @@ func WithCodeRunLanguage(language types.CodeLanguage) func(*CodeRun) {
 func WithCodeRunTimeout(timeout time.Duration) func(*CodeRun) {
 	return func(opts *CodeRun) {
 		opts.Timeout = &timeout
+	}
+}
+
+func WithCodeRunContainer(container string) func(*CodeRun) {
+	return func(opts *CodeRun) {
+		opts.Container = &container
+	}
+}
+
+// CreateSession are the options of CreateSession.
+type CreateSession struct {
+	// mogenius: Container the session's shell runs in; the sandbox's own when nil.
+	Container *string
+}
+
+func WithSessionContainer(container string) func(*CreateSession) {
+	return func(opts *CreateSession) {
+		opts.Container = &container
 	}
 }

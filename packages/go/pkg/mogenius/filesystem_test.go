@@ -84,17 +84,18 @@ func TestFileSystemRequests(t *testing.T) {
 	}
 
 	calls := f.recorded()
-	route := "/sandbox/agent-sandbox/default-abc12/toolbox/files"
+	// files are a pod feature: the pod route, in the sandbox's own container
+	route := "/resource/files/agent-sandbox/default-k27tp"
 	for i, want := range []struct{ method, path, query string }{
-		{http.MethodGet, route, "path=%2Fw"},
-		{http.MethodGet, route + "/info", "path=%2Fw%2Fa.txt"},
-		{http.MethodPost, route + "/folder", "mode=755&path=%2Fw%2Fnew"},
-		{http.MethodDelete, route, "path=%2Fw%2Fnew&recursive=true"},
-		{http.MethodPost, route + "/move", "destination=%2Fw%2Fb&source=%2Fw%2Fa"},
-		{http.MethodPost, route + "/permissions", "mode=600&owner=root&path=%2Fw%2Fa.txt"},
-		{http.MethodGet, route + "/search", "path=%2Fw&pattern=%2A.py"},
-		{http.MethodGet, route + "/find", "path=%2Fw&pattern=import"},
-		{http.MethodPost, route + "/replace", ""},
+		{http.MethodGet, route, "container=sandbox&path=%2Fw"},
+		{http.MethodGet, route + "/info", "container=sandbox&path=%2Fw%2Fa.txt"},
+		{http.MethodPost, route + "/folder", "container=sandbox&mode=755&path=%2Fw%2Fnew"},
+		{http.MethodDelete, route, "container=sandbox&path=%2Fw%2Fnew&recursive=true"},
+		{http.MethodPost, route + "/move", "container=sandbox&destination=%2Fw%2Fb&source=%2Fw%2Fa"},
+		{http.MethodPost, route + "/permissions", "container=sandbox&mode=600&owner=root&path=%2Fw%2Fa.txt"},
+		{http.MethodGet, route + "/search", "container=sandbox&path=%2Fw&pattern=%2A.py"},
+		{http.MethodGet, route + "/find", "container=sandbox&path=%2Fw&pattern=import"},
+		{http.MethodPost, route + "/replace", "container=sandbox"},
 	} {
 		expectCall(t, calls[i], want.method, want.path)
 		if got := calls[i].query.Encode(); got != want.query {
@@ -125,7 +126,7 @@ func TestDownloadFileThroughTheLink(t *testing.T) {
 	}
 
 	calls := f.recorded()
-	expectCall(t, calls[0], http.MethodPost, "/sandbox/agent-sandbox/default-abc12/toolbox/files/download-link")
+	expectCall(t, calls[0], http.MethodPost, "/resource/files/agent-sandbox/default-k27tp/download-link")
 	if calls[0].query.Get("path") != "/w/a.txt" || calls[0].header.Get("Authorization") == "" {
 		t.Fatalf("link request %+v", calls[0])
 	}
@@ -205,25 +206,6 @@ func TestDownloadFileStreamFailsWhenTheFileChanged(t *testing.T) {
 	}
 }
 
-func TestDownloadFallsBackToTheBufferedRoute(t *testing.T) {
-	f := newFakePlatform(t,
-		reply{status: 404, body: map[string]any{
-			"statusCode": 404, "message": "Cannot POST /sandbox/agent-sandbox/default-abc12/toolbox/files/download-link", "error": "Not Found",
-		}},
-		reply{raw: []byte("buffered")},
-	)
-
-	data, err := f.sandbox(t, nil).FileSystem.DownloadFile(context.Background(), "/w/a.txt", nil)
-	if err != nil || string(data) != "buffered" {
-		t.Fatalf("data %q, %v", data, err)
-	}
-	call := f.recorded()[1]
-	expectCall(t, call, http.MethodGet, "/sandbox/agent-sandbox/default-abc12/toolbox/files/download")
-	if call.query.Get("path") != "/w/a.txt" {
-		t.Fatalf("query %v", call.query)
-	}
-}
-
 func TestDownloadOfAMissingFileIsNotAFallback(t *testing.T) {
 	f := newFakePlatform(t, reply{status: 404, body: map[string]any{
 		"statusCode": 404, "errorCode": "FILE_NOT_FOUND", "source": "operator", "message": "no such file",
@@ -282,7 +264,7 @@ func TestUploadFile(t *testing.T) {
 	}
 
 	calls := f.recorded()
-	expectCall(t, calls[0], http.MethodPost, "/sandbox/agent-sandbox/default-abc12/toolbox/files/upload")
+	expectCall(t, calls[0], http.MethodPost, "/resource/files/agent-sandbox/default-k27tp/upload")
 	if calls[0].query.Get("path") != "/w/data/a.txt" || calls[0].length != int64(len(calls[0].body)) {
 		t.Fatalf("upload request %+v", calls[0])
 	}

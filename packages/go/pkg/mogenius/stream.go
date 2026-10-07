@@ -35,10 +35,9 @@ const (
 var sessionGone = regexp.MustCompile(`(?i)session not found|command not found in the session|the session has ended`)
 
 // openStream opens a socket on the platform's stream gateway. The gateway
-// reads the query string like headers, so the key and the ids travel there;
-// binary frames are on, since output frames carry a stream tag. Unlike the
-// HTTP routes, the gateway does not infer organization and cluster from the
-// key, so both have to be configured.
+// reads the query string like headers, so the key and the ids travel there
+// next to params. Unlike the HTTP routes, the gateway does not infer
+// organization and cluster from the key, so both have to be configured.
 func (a *apiClient) openStream(ctx context.Context, params map[string]string) (*websocket.Conn, error) {
 	if a.cfg.organizationID == "" || a.cfg.clusterID == "" {
 		return nil, sdkerrors.NewMogeniusError(
@@ -57,7 +56,6 @@ func (a *apiClient) openStream(ctx context.Context, params map[string]string) (*
 			values.Set(key, value)
 		}
 	}
-	values.Set("binary", "1")
 
 	conn, resp, err := websocket.Dial(ctx, a.cfg.streamURL+"/xterm-stream?"+values.Encode(), &websocket.DialOptions{
 		HTTPClient: a.cfg.httpClient,

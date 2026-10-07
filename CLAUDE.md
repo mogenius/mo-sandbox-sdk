@@ -13,7 +13,7 @@ is designed for drop-in use in agent frameworks. Sandboxes are `SandboxClaim` /
 packages/typescript/   @mogenius/sandbox — Mogenius, Sandbox, Process, FileSystem, errors
 packages/go/           Go module github.com/mogenius/mo-sandbox-sdk/packages/go — pkg/mogenius (Client, Sandbox,
                        ProcessService, FileSystemService), pkg/types, pkg/options, pkg/errors; examples/ inside
-openapi-specs/         planned: sandbox-api.json, toolbox.json (MOG-4698) → generated clients (MOG-4699)
+openapi-specs/         planned: sandbox-api.json, pod-api.json (MOG-4698) → generated clients (MOG-4699)
 examples/              runnable with `npx tsx`, read .env
 ```
 
@@ -59,16 +59,17 @@ cd packages/go && go test ./... && go vet ./... && gofmt -l .
 | `setLabels()`, `setAutoDeleteInterval()` | `PATCH /sandbox/:namespace/:id`                        |
 | `start()`, `stop()`                   | `POST /sandbox/:namespace/:id/start` · `/stop`            |
 | `delete()`                            | `DELETE /sandbox/:namespace/:id`                          |
-| `process.executeCommand()`, `codeRun()` | `POST /sandbox/:namespace/:id/toolbox/process/execute`  |
+| `process.executeCommand()`, `codeRun()` | pod route, not a sandbox route: `POST /resource/exec/:namespace/:podName` (`podName` from the sandbox data, refreshed once when still null; `container` in the body, the sandbox's by default; the stream takes it as query) |
 | `process.executeCommandStream()`      | stream gateway `/xterm-stream?type=CLUSTER__POD_EXEC&cmd=exec&namespace&podName&container&binary=1`; on the text frame `SEND_EXEC_REQUEST` the client sends one text frame with the `K8sPodExecRequestDto` JSON (never in the URL: Cloudflare blocks shell syntax there, base64 too). Then binary frames tag 0 stdout / 1 stderr; text `EXIT:<code>`, `TRUNCATED`, `TIMEOUT`, `ERROR:<msg>` |
-| `fs.listFiles()`, `fs.getFileDetails()` | `GET …/toolbox/files` · `…/files/info`                  |
-| `fs.downloadFile()`, `fs.downloadFileStream()` | `POST …/toolbox/files/download-link` → `GET <one-time url>` (fallback `GET …/files/download`) |
-| `fs.uploadFile(s)()`                  | `POST …/toolbox/files/upload`                             |
-| `fs.createFolder()`, `fs.moveFiles()`, `fs.deleteFile()` | `POST …/files/folder` · `POST …/files/move` · `DELETE …/files` |
-| `fs.setFilePermissions()`             | `POST …/toolbox/files/permissions`                        |
-| `fs.searchFiles()`, `fs.findFiles()`, `fs.replaceInFiles()` | `GET …/files/search` · `GET …/files/find` · `POST …/files/replace` |
+| `fs.listFiles()`, `fs.getFileDetails()` | pod routes: `GET /resource/files/:namespace/:podName` · `…/info`; every file route takes `?container=` (the sandbox's) |
+| `fs.downloadFile()`, `fs.downloadFileStream()` | `POST …/download-link` → `GET <one-time url>` |
+| `fs.uploadFile(s)()`                  | `POST …/upload`                                           |
+| `fs.createFolder()`, `fs.moveFiles()`, `fs.deleteFile()` | `POST …/folder` · `POST …/move` · `DELETE /resource/files/:namespace/:podName` |
+| `fs.setFilePermissions()`             | `POST …/permissions`                                      |
+| `fs.searchFiles()`, `fs.findFiles()`, `fs.replaceInFiles()` | `GET …/search` · `GET …/find` · `POST …/replace` |
 | `process.createSession()`, `listSessions()`, `getSession()`, `deleteSession()` | pod routes, not sandbox routes: `POST`/`GET /resource/session/:namespace/:podName` · `GET`/`DELETE …/:sessionId` (`podName` from the sandbox data; `container` defaults to the sandbox's) |
 | `process.executeSessionCommand()`      | `POST /resource/session/:namespace/:podName/:sessionId/exec` (`timeout` = wait of a synchronous call, the command runs on) |
 | `process.getSessionCommand()`, `getSessionCommandLogs()`, `sendSessionCommandInput()` | `GET …/:sessionId/command/:cmdId` · `GET …/command/:cmdId/logs` · `POST …/command/:cmdId/input`; live follow over the stream gateway `type=CLUSTER__POD_SESSION_LOG&cmd=session-log&namespace&podName&sessionId&cmdId` with the exec stream's frames |
+| `sandbox.tunnel()` / `Sandbox.Tunnel()` | stream gateway `/xterm-stream?type=PORT_FORWARD&cmd=port-forward&namespace&kind=Pod&workloadName=<pod>&remotePort` (no `binary`; mocli's port-forward protocol): wait for `PEER_IS_READY`, answer it; per TCP connection text `PFM:O:<id>` / `PFM:C:<id>`, bytes as binary `[id length][id][data]`; `BROWSER_PING` every 5 s. Not the HTTP tunnel API (`/resource/tunnel/session`): its proxy forwards the caller's `Authorization`/`Cookie` to the target |
 
 Headers: `authorization: Bearer <key>`, `organization-id`, `cluster-id`, optional `workspace-name`.

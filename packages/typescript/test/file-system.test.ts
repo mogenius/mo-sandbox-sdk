@@ -16,10 +16,10 @@ const fileInfo = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const base = '/sandbox/agent-sandbox/default-abc12/toolbox/files';
+const base = '/resource/files/agent-sandbox/default-k27tp';
 
 describe('FileSystem', () => {
-  it('listFiles and getFileDetails read through the toolbox routes', async () => {
+  it('listFiles and getFileDetails read through the pod routes in the sandbox container', async () => {
     const { fetch, calls } = fakeFetch(
       { body: sandboxInfo() },
       { body: [fileInfo(), fileInfo({ name: 'src', isDir: true })] },
@@ -30,6 +30,7 @@ describe('FileSystem', () => {
     const list = await sandbox.fs.listFiles('src');
     expect(calls[1]!.url.pathname).toBe(base);
     expect(calls[1]!.url.searchParams.get('path')).toBe('src');
+    expect(calls[1]!.url.searchParams.get('container')).toBe('sandbox');
     expect(list).toHaveLength(2);
     expect(list[0]).toMatchObject({
       name: 'a.py',
@@ -155,19 +156,6 @@ describe('FileSystem', () => {
     await expect(sandbox.fs.downloadFile('a.txt')).rejects.toBeInstanceOf(MogeniusNotFoundError);
   });
 
-  it('downloadFile falls back to the buffered route on a platform without download links', async () => {
-    const { fetch, calls } = fakeFetch(
-      { body: sandboxInfo() },
-      { status: 404, body: { statusCode: 404, error: 'Not Found', message: `Cannot POST ${base}/download-link` } },
-      { raw: Buffer.from('old way'), contentType: 'application/octet-stream' },
-    );
-    const sandbox = await new Mogenius({ ...CONFIG, fetch }).get('default-abc12');
-    const data = await sandbox.fs.downloadFile('a.txt');
-    expect(data.toString('utf8')).toBe('old way');
-    expect(calls[2]!.method).toBe('GET');
-    expect(calls[2]!.url.pathname).toBe(`${base}/download`);
-  });
-
   it('createFolder, moveFiles, deleteFile and setFilePermissions carry their parameters as query', async () => {
     const { fetch, calls } = fakeFetch(
       { body: sandboxInfo() },
@@ -181,17 +169,30 @@ describe('FileSystem', () => {
     await sandbox.fs.createFolder('out', '755');
     expect(calls[1]!.method).toBe('POST');
     expect(calls[1]!.url.pathname).toBe(`${base}/folder`);
-    expect(Object.fromEntries(calls[1]!.url.searchParams)).toEqual({ path: 'out', mode: '755' });
+    expect(Object.fromEntries(calls[1]!.url.searchParams)).toEqual({ container: 'sandbox', path: 'out', mode: '755' });
 
     await sandbox.fs.moveFiles('a.py', 'out/a.py');
-    expect(Object.fromEntries(calls[2]!.url.searchParams)).toEqual({ source: 'a.py', destination: 'out/a.py' });
+    expect(Object.fromEntries(calls[2]!.url.searchParams)).toEqual({
+      container: 'sandbox',
+      source: 'a.py',
+      destination: 'out/a.py',
+    });
 
     await sandbox.fs.deleteFile('out', true);
     expect(calls[3]!.method).toBe('DELETE');
-    expect(Object.fromEntries(calls[3]!.url.searchParams)).toEqual({ path: 'out', recursive: 'true' });
+    expect(Object.fromEntries(calls[3]!.url.searchParams)).toEqual({
+      container: 'sandbox',
+      path: 'out',
+      recursive: 'true',
+    });
 
     const info = await sandbox.fs.setFilePermissions('a.py', { mode: '600', owner: 'root' });
-    expect(Object.fromEntries(calls[4]!.url.searchParams)).toEqual({ path: 'a.py', mode: '600', owner: 'root' });
+    expect(Object.fromEntries(calls[4]!.url.searchParams)).toEqual({
+      container: 'sandbox',
+      path: 'a.py',
+      mode: '600',
+      owner: 'root',
+    });
     expect(info.owner).toBe('root');
   });
 

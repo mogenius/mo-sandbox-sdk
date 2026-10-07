@@ -39,11 +39,12 @@ func TestExecuteCommandRequestAndResult(t *testing.T) {
 	}
 
 	calls := f.recorded()
-	expectCall(t, calls[0], http.MethodPost, "/sandbox/agent-sandbox/default-abc12/toolbox/process/execute")
-	if body := calls[0].json(t); !reflect.DeepEqual(body, map[string]any{"command": "ls /nope", "timeout": float64(10)}) {
+	// commands are a pod feature: the pod route, in the sandbox's own container
+	expectCall(t, calls[0], http.MethodPost, "/resource/exec/agent-sandbox/default-k27tp")
+	if body := calls[0].json(t); !reflect.DeepEqual(body, map[string]any{"command": "ls /nope", "timeout": float64(10), "container": "sandbox"}) {
 		t.Fatalf("default body %v", body)
 	}
-	want := map[string]any{"command": "pwd", "cwd": "/tmp", "env": map[string]any{"A": "1"}, "timeout": float64(2)}
+	want := map[string]any{"command": "pwd", "cwd": "/tmp", "env": map[string]any{"A": "1"}, "timeout": float64(2), "container": "sandbox"}
 	if body := calls[1].json(t); !reflect.DeepEqual(body, want) {
 		t.Fatalf("body %v, want %v", body, want)
 	}
@@ -242,14 +243,59 @@ func TestSessionsRunOnThePodRoutes(t *testing.T) {
 }
 
 func TestSessionsNeedAPod(t *testing.T) {
-	f := newFakePlatform(t)
-	process := f.sandbox(t, map[string]any{"podName": nil, "state": "creating"}).Process
+	stillCreating := sandboxJSON(map[string]any{"podName": nil, "state": "creating"})
+	f := newFakePlatform(t, reply{body: stillCreating})
+	process := f.sandbox(t, stillCreating).Process
 
 	var conflict *sdkerrors.MogeniusConflictError
 	if err := process.CreateSession(context.Background(), "build"); !errors.As(err, &conflict) {
 		t.Fatalf("got %v", err)
 	}
-	if len(f.recorded()) != 0 {
-		t.Fatal("nothing should have been sent")
+	// the sandbox was read again, no session route was asked
+	calls := f.recorded()
+	if len(calls) != 1 {
+		t.Fatalf("got %d calls", len(calls))
+	}
+	expectCall(t, calls[0], http.MethodGet, "/sandbox/agent-sandbox/default-abc12")
+}
+
+func TestASandboxWithoutAPodIsReadAgain(t *testing.T) {
+	f := newFakePlatform(t,
+		reply{body: sandboxJSON(nil)},
+		reply{status: 201, body: execJSON(0, "", "")},
+	)
+	process := f.sandbox(t, map[string]any{"podName": nil, "state": "creating"}).Process
+
+	if _, err := process.ExecuteCommand(context.Background(), "true"); err != nil {
+		t.Fatal(err)
+	}
+	calls := f.recorded()
+	expectCall(t, calls[0], http.MethodGet, "/sandbox/agent-sandbox/default-abc12")
+	expectCall(t, calls[1], http.MethodPost, "/resource/exec/agent-sandbox/default-k27tp")
+}
+
+func TestTheContainerCanBeChosen(t *testing.T) {
+	f := newFakePlatform(t,
+		reply{status: 201, body: execJSON(0, "", "")},
+		reply{status: 201, body: execJSON(0, "", "")},
+		reply{status: 201},
+	)
+	process := f.sandbox(t, nil).Process
+	ctx := context.Background()
+
+	if _, err := process.ExecuteCommand(ctx, "ls", options.WithContainer("sidecar")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := process.CodeRun(ctx, "print(1)", options.WithCodeRunContainer("sidecar")); err != nil {
+		t.Fatal(err)
+	}
+	if err := process.CreateSession(ctx, "build", options.WithSessionContainer("sidecar")); err != nil {
+		t.Fatal(err)
+	}
+
+	for i, call := range f.recorded() {
+		if container := call.json(t).(map[string]any)["container"]; container != "sidecar" {
+			t.Errorf("call %d (%s) sent container %v", i, call.path, container)
+		}
 	}
 }

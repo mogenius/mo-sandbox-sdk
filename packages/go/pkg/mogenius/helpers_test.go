@@ -224,7 +224,7 @@ func sandboxJSON(overrides map[string]any) map[string]any {
 	return info
 }
 
-// execJSON is an answer of the toolbox exec route.
+// execJSON is an answer of the pod exec route.
 func execJSON(exitCode int, stdout, stderr string) map[string]any {
 	return map[string]any{
 		"exitCode":   exitCode,

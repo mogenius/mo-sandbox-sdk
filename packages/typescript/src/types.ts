@@ -166,6 +166,32 @@ export interface CodeRunParams {
   env?: Record<string, string>;
   /** Overrides the sandbox's default language for this run. */
   language?: CodeLanguage;
+  /** mogenius: container to run in; the sandbox's own when absent. */
+  container?: string;
+}
+
+/**
+ * mogenius: a local TCP port forwarded to a port of the sandbox through the
+ * platform's stream gateway, from `sandbox.tunnel()`. Only bytes travel: the
+ * sandbox sees no credentials.
+ */
+export interface Tunnel {
+  /** Always `127.0.0.1`. */
+  readonly host: string;
+  /** The local port that leads into the sandbox. */
+  readonly port: number;
+  /** `http://127.0.0.1:<port>`, for an HTTP service behind the tunnel. */
+  readonly url: string;
+  /** Settles when the tunnel has ended: with the error that ended it, or `undefined` after `close()`. */
+  readonly done: Promise<Error | undefined>;
+  /** Ends the tunnel and every connection through it. */
+  close(): Promise<void>;
+}
+
+/** Options of `sandbox.tunnel()`. */
+export interface TunnelOptions {
+  /** Local port to listen on; a free one when absent. */
+  localPort?: number;
 }
 
 /** The sandbox as the platform returns it. */

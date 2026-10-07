@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -57,14 +58,27 @@ type downloadLink struct {
 	ExpiresInSeconds int    `json:"expiresInSeconds"`
 }
 
-func (f *FileSystemService) route(suffix string) string {
-	return f.sandbox.path() + "/toolbox/files" + suffix
+// call sends one request to the pod route of suffix, in the sandbox's own
+// container (the pod route would take the pod's first): files are a pod feature.
+func (f *FileSystemService) call(ctx context.Context, method, suffix string, values url.Values, body, out any) error {
+	podName, container, err := f.sandbox.pod(ctx)
+	if err != nil {
+		return err
+	}
+	if values == nil {
+		values = url.Values{}
+	}
+	if container != "" {
+		values.Set("container", container)
+	}
+	path := "/resource/files/" + segment(f.sandbox.Namespace) + "/" + segment(podName) + suffix
+	return f.sandbox.api.do(ctx, method, path, values, body, out)
 }
 
 // ListFiles returns the entries directly below path (empty: the working directory).
 func (f *FileSystemService) ListFiles(ctx context.Context, path string) ([]*types.FileInfo, error) {
 	var bodies []fileInfoBody
-	if err := f.sandbox.api.get(ctx, f.route(""), query("path", path), &bodies); err != nil {
+	if err := f.call(ctx, http.MethodGet, "", query("path", path), nil, &bodies); err != nil {
 		return nil, err
 	}
 	files := make([]*types.FileInfo, len(bodies))
@@ -77,7 +91,7 @@ func (f *FileSystemService) ListFiles(ctx context.Context, path string) ([]*type
 // GetFileInfo returns one file's or folder's details.
 func (f *FileSystemService) GetFileInfo(ctx context.Context, path string) (*types.FileInfo, error) {
 	var body fileInfoBody
-	if err := f.sandbox.api.get(ctx, f.route("/info"), query("path", path), &body); err != nil {
+	if err := f.call(ctx, http.MethodGet, "/info", query("path", path), nil, &body); err != nil {
 		return nil, err
 	}
 	return toFileInfo(body), nil
@@ -89,17 +103,17 @@ func (f *FileSystemService) CreateFolder(ctx context.Context, path string, opts 
 	for _, opt := range opts {
 		opt(folderOpts)
 	}
-	return f.sandbox.api.post(ctx, f.route("/folder"), query("path", path, "mode", deref(folderOpts.Mode)), nil, nil)
+	return f.call(ctx, http.MethodPost, "/folder", query("path", path, "mode", deref(folderOpts.Mode)), nil, nil)
 }
 
 // DeleteFile removes a file, or a folder — only when empty unless recursive.
 func (f *FileSystemService) DeleteFile(ctx context.Context, path string, recursive bool) error {
-	return f.sandbox.api.delete(ctx, f.route(""), query("path", path, "recursive", strconv.FormatBool(recursive)), nil)
+	return f.call(ctx, http.MethodDelete, "", query("path", path, "recursive", strconv.FormatBool(recursive)), nil, nil)
 }
 
 // MoveFiles moves or renames; the destination's folder must exist.
 func (f *FileSystemService) MoveFiles(ctx context.Context, source, destination string) error {
-	return f.sandbox.api.post(ctx, f.route("/move"), query("source", source, "destination", destination), nil, nil)
+	return f.call(ctx, http.MethodPost, "/move", query("source", source, "destination", destination), nil, nil)
 }
 
 // SetFilePermissions changes mode, owner and group independently; what is not given stays.
@@ -108,7 +122,7 @@ func (f *FileSystemService) SetFilePermissions(ctx context.Context, path string,
 	for _, opt := range opts {
 		opt(permOpts)
 	}
-	return f.sandbox.api.post(ctx, f.route("/permissions"),
+	return f.call(ctx, http.MethodPost, "/permissions",
 		query("path", path, "mode", deref(permOpts.Mode), "owner", deref(permOpts.Owner), "group", deref(permOpts.Group)), nil, nil)
 }
 
@@ -120,7 +134,7 @@ func (f *FileSystemService) SearchFiles(ctx context.Context, path, pattern strin
 		Files     []string `json:"files"`
 		Truncated bool     `json:"truncated"`
 	}
-	if err := f.sandbox.api.get(ctx, f.route("/search"), query("path", path, "pattern", pattern), &body); err != nil {
+	if err := f.call(ctx, http.MethodGet, "/search", query("path", path, "pattern", pattern), nil, &body); err != nil {
 		return nil, err
 	}
 	if body.Files == nil {
@@ -139,7 +153,7 @@ func (f *FileSystemService) FindFiles(ctx context.Context, path, pattern string)
 			Content string `json:"content"`
 		} `json:"matches"`
 	}
-	if err := f.sandbox.api.get(ctx, f.route("/find"), query("path", path, "pattern", pattern), &body); err != nil {
+	if err := f.call(ctx, http.MethodGet, "/find", query("path", path, "pattern", pattern), nil, &body); err != nil {
 		return nil, err
 	}
 	matches := make([]map[string]any, len(body.Matches))
@@ -159,7 +173,7 @@ func (f *FileSystemService) ReplaceInFiles(ctx context.Context, files []string, 
 		Error   *string `json:"error"`
 	}
 	request := map[string]any{"files": files, "pattern": pattern, "newValue": newValue}
-	if err := f.sandbox.api.post(ctx, f.route("/replace"), nil, request, &body); err != nil {
+	if err := f.call(ctx, http.MethodPost, "/replace", nil, request, &body); err != nil {
 		return nil, err
 	}
 	results := make([]map[string]any, len(body))
@@ -245,7 +259,7 @@ func (f *FileSystemService) upload(ctx context.Context, content io.Reader, size 
 		return sdkerrors.NewMogeniusError("Failed to build the upload: "+err.Error(), 0, nil)
 	}
 	var results []uploadResult
-	if err := f.sandbox.api.post(ctx, f.route("/upload"), query("path", destination), form, &results); err != nil {
+	if err := f.call(ctx, http.MethodPost, "/upload", query("path", destination), form, &results); err != nil {
 		return err
 	}
 	for _, result := range results {
@@ -307,8 +321,7 @@ func WithDownloadProgress(fn func(DownloadProgress)) DownloadStreamOption {
 // DownloadFileStream returns the file as a stream, chunked from the container
 // to the caller without any station holding it whole — for files too big for
 // memory. The caller closes it. The platform hands out a short-lived link
-// that is fetched without auth headers; a platform without streamed downloads
-// answers the buffered way.
+// that is fetched without auth headers.
 //
 // A file (not a folder) resumes on its own: when the connection drops or ends
 // early, the stream asks the same link for the rest with a Range request and
@@ -320,18 +333,8 @@ func (f *FileSystemService) DownloadFileStream(ctx context.Context, remotePath s
 		opt(config)
 	}
 	var link downloadLink
-	if err := f.sandbox.api.post(ctx, f.route("/download-link"), query("path", remotePath), nil, &link); err != nil {
-		if !isRouteMissing(err) {
-			return nil, err
-		}
-		var data []byte
-		if err := f.sandbox.api.get(ctx, f.route("/download"), query("path", remotePath), &data); err != nil {
-			return nil, err
-		}
-		if config.onProgress != nil {
-			config.onProgress(DownloadProgress{BytesReceived: int64(len(data)), TotalBytes: int64(len(data))})
-		}
-		return io.NopCloser(bytes.NewReader(data)), nil
+	if err := f.call(ctx, http.MethodPost, "/download-link", query("path", remotePath), nil, &link); err != nil {
+		return nil, err
 	}
 	first, err := f.sandbox.api.fetchDownload(ctx, link.URL, nil)
 	if err != nil {
@@ -433,12 +436,6 @@ func (r *resumableReader) resume(cause string) error {
 	}
 	r.body = response.Body
 	return nil
-}
-
-// isRouteMissing: a 404 for the route itself (not for a file) means the platform predates streamed downloads.
-func isRouteMissing(err error) bool {
-	var notFound *sdkerrors.MogeniusNotFoundError
-	return errors.As(err, &notFound) && notFound.ErrorCode == "" && strings.HasPrefix(notFound.Message, "Cannot POST ")
 }
 
 func toFileInfo(body fileInfoBody) *types.FileInfo {

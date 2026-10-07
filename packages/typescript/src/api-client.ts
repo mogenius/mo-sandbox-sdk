@@ -86,10 +86,9 @@ export class ApiClient {
 
   /**
    * Opens a socket on the platform's stream gateway. The gateway reads the
-   * query string like headers, so the key and the ids travel there; binary
-   * frames are on, since output frames carry a stream tag. Unlike the HTTP
-   * routes, the gateway does not infer organization and cluster from the
-   * key, so both have to be configured.
+   * query string like headers, so the key and the ids travel there next to
+   * `query`. Unlike the HTTP routes, the gateway does not infer organization
+   * and cluster from the key, so both have to be configured.
    */
   openStream(query: Query): WebSocket {
     const WebSocketImpl = this.config.webSocket;
@@ -113,7 +112,6 @@ export class ApiClient {
         url.searchParams.set(key, String(value));
       }
     }
-    url.searchParams.set('binary', '1');
     const socket = new WebSocketImpl(url);
     socket.binaryType = 'arraybuffer';
     return socket;

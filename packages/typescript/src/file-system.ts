@@ -1,5 +1,5 @@
 import type { ApiClient } from './api-client.js';
-import { MogeniusError, MogeniusNotFoundError } from './errors.js';
+import { MogeniusError } from './errors.js';
 import type {
   DownloadLink,
   FileInfo,
@@ -35,17 +35,18 @@ export class FileSystem {
   constructor(
     private readonly api: ApiClient,
     private readonly namespace: string,
-    private readonly sandboxId: string,
+    /** Where the sandbox runs right now; files are a pod feature. */
+    private readonly pod: () => Promise<{ podName: string; containerName: string }>,
   ) {}
 
   /** Entries directly below `path` (default: the working directory). */
   async listFiles(path?: string): Promise<FileInfo[]> {
-    const items = await this.api.get<FileInfoBody[]>(this.route(''), { path });
+    const items = await this.api.get<FileInfoBody[]>(await this.route(''), { path });
     return items.map(toFileInfo);
   }
 
   async getFileDetails(path: string): Promise<FileInfo> {
-    return toFileInfo(await this.api.get<FileInfoBody>(this.route('/info'), { path }));
+    return toFileInfo(await this.api.get<FileInfoBody>(await this.route('/info'), { path }));
   }
 
   /** The file's bytes. A folder comes back as a gzipped tar. */
@@ -59,7 +60,7 @@ export class FileSystem {
    * caller without any station holding it whole — for files too big for a
    * Buffer. Pipe it to disk with `Readable.fromWeb(stream).pipe(createWriteStream(…))`.
    * The platform hands out a short-lived link that is fetched without auth
-   * headers; a platform without streamed downloads answers the buffered way.
+   * headers.
    *
    * A file (not a folder) resumes on its own: when the connection drops or
    * ends early, the stream asks the same link for the rest with a Range
@@ -67,16 +68,7 @@ export class FileSystem {
    * the caller reads stay one uninterrupted, complete file.
    */
   async downloadFileStream(path: string): Promise<ReadableStream<Uint8Array>> {
-    let link: DownloadLink;
-    try {
-      link = await this.api.post<DownloadLink>(this.route('/download-link'), undefined, { path });
-    } catch (err) {
-      if (isRouteMissing(err)) {
-        const data = await this.api.getBinary(this.route('/download'), { path });
-        return new Blob([data as Uint8Array<ArrayBuffer>]).stream();
-      }
-      throw err;
-    }
+    const link = await this.api.post<DownloadLink>(await this.route('/download-link'), undefined, { path });
     const first = await this.api.fetchDownload(link.url);
     return resumableStream(this.api, link.url, first, this.resumeDelaysMs);
   }
@@ -92,7 +84,7 @@ export class FileSystem {
   async uploadFile(file: Buffer | Uint8Array | string, path: string): Promise<void> {
     const form = new FormData();
     form.append('file', toBlob(file), basename(path));
-    const results = await this.api.postForm<UploadResult[]>(this.route('/upload'), form, { path });
+    const results = await this.api.postForm<UploadResult[]>(await this.route('/upload'), form, { path });
     assertUploaded(results);
   }
 
@@ -107,7 +99,7 @@ export class FileSystem {
       // verbatim but reduce file names to their base name
       form.append(upload.destination, toBlob(upload.source), basename(upload.destination));
     }
-    return this.api.postForm<UploadResult[]>(this.route('/upload'), form);
+    return this.api.postForm<UploadResult[]>(await this.route('/upload'), form);
   }
 
   /** Downloads several files; a failure for one does not stop the others. */
@@ -125,23 +117,23 @@ export class FileSystem {
 
   /** Creates the folder and its parents. `mode` is octal (`755`) or symbolic (`u+x`). */
   async createFolder(path: string, mode?: string): Promise<void> {
-    await this.api.post<void>(this.route('/folder'), undefined, { path, mode });
+    await this.api.post<void>(await this.route('/folder'), undefined, { path, mode });
   }
 
   /** Moves or renames; the destination's folder must exist. */
   async moveFiles(source: string, destination: string): Promise<void> {
-    await this.api.post<void>(this.route('/move'), undefined, { source, destination });
+    await this.api.post<void>(await this.route('/move'), undefined, { source, destination });
   }
 
   /** Removes a file, or a folder — only when empty unless `recursive`. */
   async deleteFile(path: string, recursive = false): Promise<void> {
-    await this.api.delete<void>(this.route(''), { path, recursive: recursive ? 'true' : 'false' });
+    await this.api.delete<void>(await this.route(''), { path, recursive: recursive ? 'true' : 'false' });
   }
 
   /** Mode, owner and group are independent; what is not given stays. */
   async setFilePermissions(path: string, params: SetFilePermissionsParams): Promise<FileInfo> {
     return toFileInfo(
-      await this.api.post<FileInfoBody>(this.route('/permissions'), undefined, {
+      await this.api.post<FileInfoBody>(await this.route('/permissions'), undefined, {
         path,
         mode: params.mode,
         owner: params.owner,
@@ -152,22 +144,28 @@ export class FileSystem {
 
   /** Names below `path` matching a shell glob, e.g. `*.py`. */
   async searchFiles(path: string, pattern: string): Promise<SearchFilesResponse> {
-    return this.api.get<SearchFilesResponse>(this.route('/search'), { path, pattern });
+    return this.api.get<SearchFilesResponse>(await this.route('/search'), { path, pattern });
   }
 
   /** Lines below `path` matching a grep pattern. */
   async findFiles(path: string, pattern: string): Promise<Match[]> {
-    const result = await this.api.get<{ matches: Match[]; truncated: boolean }>(this.route('/find'), { path, pattern });
+    const result = await this.api.get<{ matches: Match[]; truncated: boolean }>(await this.route('/find'), {
+      path,
+      pattern,
+    });
     return result.matches;
   }
 
   /** Replaces every literal occurrence of `pattern` in each file; one result per file. */
   async replaceInFiles(files: string[], pattern: string, newValue: string): Promise<ReplaceResult[]> {
-    return this.api.post<ReplaceResult[]>(this.route('/replace'), { files, pattern, newValue });
+    return this.api.post<ReplaceResult[]>(await this.route('/replace'), { files, pattern, newValue });
   }
 
-  private route(suffix: string): string {
-    return `/sandbox/${encodeURIComponent(this.namespace)}/${encodeURIComponent(this.sandboxId)}/toolbox/files${suffix}`;
+  /** The pod route of `suffix`, in the sandbox's own container (the pod route would take the first). */
+  private async route(suffix: string): Promise<string> {
+    const { podName, containerName } = await this.pod();
+    const base = `/resource/files/${encodeURIComponent(this.namespace)}/${encodeURIComponent(podName)}${suffix}`;
+    return containerName ? `${base}?container=${encodeURIComponent(containerName)}` : base;
   }
 }
 
@@ -206,11 +204,6 @@ function assertUploaded(results: UploadResult[]): void {
       source: 'operator',
     });
   }
-}
-
-/** A 404 for the route itself (not for a file): the platform predates streamed downloads. */
-function isRouteMissing(err: unknown): boolean {
-  return err instanceof MogeniusNotFoundError && err.errorCode === undefined && /^Cannot POST /.test(err.message);
 }
 
 /**

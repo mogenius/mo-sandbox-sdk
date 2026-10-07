@@ -15,7 +15,7 @@ const execResponse = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe('Process.executeCommand', () => {
-  it('posts to the toolbox route with positional parameters', async () => {
+  it('posts to the pod exec route with positional parameters', async () => {
     const { fetch, calls } = fakeFetch(
       { body: sandboxInfo() },
       {
@@ -27,21 +27,35 @@ describe('Process.executeCommand', () => {
 
     const response = await sandbox.process.executeCommand('echo out; echo err >&2; exit 3', '/tmp', { FOO: 'bar' }, 30);
 
-    expect(calls[1]!.url.pathname).toBe('/sandbox/agent-sandbox/default-abc12/toolbox/process/execute');
+    expect(calls[1]!.url.pathname).toBe('/resource/exec/agent-sandbox/default-k27tp');
     expect(calls[1]!.body).toEqual({
       command: 'echo out; echo err >&2; exit 3',
       cwd: '/tmp',
       env: { FOO: 'bar' },
       timeout: 30,
+      container: 'sandbox',
     });
     expect(response).toEqual({ exitCode: 3, result: 'out\nerr\n', artifacts: { stdout: 'out\n', stderr: 'err\n' } });
   });
 
-  it('defaults the timeout to 10 seconds and omits empty cwd and env', async () => {
+  it('defaults the timeout to 10 seconds, omits empty cwd and env and runs in the sandbox container', async () => {
     const { fetch, calls } = fakeFetch({ body: sandboxInfo() }, { status: 201, body: execResponse() });
     const sandbox = await new Mogenius({ ...CONFIG, fetch }).get('default-abc12');
     await sandbox.process.executeCommand('true', undefined, {});
-    expect(calls[1]!.body).toEqual({ command: 'true', timeout: 10 });
+    expect(calls[1]!.body).toEqual({ command: 'true', timeout: 10, container: 'sandbox' });
+  });
+
+  it('reads a sandbox without a pod again before running the command', async () => {
+    const { fetch, calls } = fakeFetch(
+      { status: 201, body: sandboxInfo({ state: 'creating', podName: null }) },
+      { body: sandboxInfo() },
+      { status: 201, body: execResponse() },
+    );
+    const sandbox = await new Mogenius({ ...CONFIG, fetch }).get('default-abc12');
+    await sandbox.process.executeCommand('true');
+    expect(calls[1]!.method).toBe('GET');
+    expect(calls[1]!.url.pathname).toBe('/sandbox/agent-sandbox/default-abc12');
+    expect(calls[2]!.url.pathname).toBe('/resource/exec/agent-sandbox/default-k27tp');
   });
 
   it('raises the process timeout error class on 408', async () => {
@@ -139,5 +153,18 @@ describe('helpers', () => {
     const { text, charts } = extractCharts(stdout);
     expect(charts).toEqual([]);
     expect(text).toBe(stdout);
+  });
+});
+
+describe('container choice', () => {
+  it('runs a command or a snippet in another container when asked', async () => {
+    const { fetch, calls } = fakeFetch({ body: sandboxInfo() }, { status: 201, body: execResponse() });
+    const sandbox = await new Mogenius({ ...CONFIG, fetch }).get('default-abc12');
+
+    await sandbox.process.executeCommand('ls', undefined, undefined, undefined, 'sidecar');
+    await sandbox.process.codeRun('print(1)', { container: 'sidecar' });
+
+    expect((calls[1]!.body as { container: string }).container).toBe('sidecar');
+    expect((calls[2]!.body as { container: string }).container).toBe('sidecar');
   });
 });

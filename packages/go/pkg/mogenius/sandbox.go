@@ -38,7 +38,7 @@ type Sandbox struct {
 	Namespace string
 	// mogenius: Image the sandbox runs.
 	Image *string
-	// mogenius: PodName and ContainerName are where the toolbox runs commands; no pod while creating.
+	// mogenius: PodName and ContainerName are what commands, files and sessions address; no pod while creating.
 	PodName       *string
 	ContainerName string
 	// mogenius: ExpiresAt is when the sandbox shuts down; nil without a deadline.
@@ -47,6 +47,14 @@ type Sandbox struct {
 	Ephemeral bool
 	// mogenius: Kind is SandboxClaim (from a warm pool) or Sandbox (own image).
 	Kind string
+	// mogenius: ServiceFQDN is the sandbox's address inside the cluster; nil while there is none.
+	ServiceFQDN *string
+	// mogenius: SandboxName is the Sandbox object that runs the pod; nil while a claim is unbound.
+	SandboxName *string
+	// mogenius: OperatingMode is Running or Suspended.
+	OperatingMode *string
+	// mogenius: CreatedBy is who created the sandbox.
+	CreatedBy *string
 
 	// Process runs commands, code and sessions inside the sandbox.
 	Process *ProcessService
@@ -73,6 +81,10 @@ type sandboxDTO struct {
 	Ephemeral     bool              `json:"ephemeral"`
 	ExpiresAt     *string           `json:"expiresAt"`
 	CreatedAt     *string           `json:"createdAt"`
+	ServiceFQDN   *string           `json:"serviceFQDN"`
+	SandboxName   *string           `json:"sandboxName"`
+	OperatingMode *string           `json:"operatingMode"`
+	CreatedBy     *string           `json:"createdBy"`
 }
 
 func newSandbox(api *apiClient, dto sandboxDTO, language types.CodeLanguage) *Sandbox {
@@ -92,6 +104,7 @@ func (s *Sandbox) apply(dto sandboxDTO) {
 	s.Target, s.Namespace, s.State, s.ErrorReason = dto.Namespace, dto.Namespace, SandboxState(dto.State), dto.StateReason
 	s.CreatedAt, s.Image, s.PodName, s.ContainerName = dto.CreatedAt, dto.Image, dto.PodName, dto.ContainerName
 	s.ExpiresAt, s.Ephemeral, s.Kind = dto.ExpiresAt, dto.Ephemeral, dto.Kind
+	s.ServiceFQDN, s.SandboxName, s.OperatingMode, s.CreatedBy = dto.ServiceFQDN, dto.SandboxName, dto.OperatingMode, dto.CreatedBy
 }
 
 func (s *Sandbox) path() string {
@@ -104,6 +117,21 @@ func (s *Sandbox) podName() string {
 		return ""
 	}
 	return *s.PodName
+}
+
+// pod is the pod and container the pod routes address. A sandbox created
+// without waiting has no pod at first, so one without is read again before
+// giving up.
+func (s *Sandbox) pod(ctx context.Context) (podName, container string, err error) {
+	if s.podName() == "" {
+		if err := s.RefreshData(ctx); err != nil {
+			return "", "", err
+		}
+	}
+	if s.podName() == "" {
+		return "", "", sdkConflict(fmt.Sprintf("Sandbox %s has no pod yet: wait until it is started.", s.ID))
+	}
+	return s.podName(), s.ContainerName, nil
 }
 
 // RefreshData reloads the sandbox from the platform.

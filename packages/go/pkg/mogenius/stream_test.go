@@ -253,3 +253,29 @@ func TestGetSessionCommandLogsStreamClosesBothChannelsOnError(t *testing.T) {
 		t.Fatal("the channel is still open")
 	}
 }
+
+func TestExecuteCommandStreamInAnotherContainer(t *testing.T) {
+	f := newFakePlatform(t)
+	requests := make(chan string, 1)
+	f.gateway = func(conn *websocket.Conn, r *http.Request) {
+		ctx := r.Context()
+		_ = conn.Write(ctx, websocket.MessageText, []byte("SEND_EXEC_REQUEST"))
+		_, request, _ := conn.Read(ctx)
+		requests <- string(request)
+		_ = conn.Write(ctx, websocket.MessageText, []byte("EXIT:0"))
+		_ = conn.Close(websocket.StatusNormalClosure, "")
+	}
+
+	for _, err := range f.sandbox(t, nil).Process.ExecuteCommandStream(context.Background(), "ls", options.WithContainer("sidecar")) {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if container := f.streamQueries()[0].Get("container"); container != "sidecar" {
+		t.Fatalf("query container %q", container)
+	}
+	if request := <-requests; !strings.Contains(request, `"container":"sidecar"`) {
+		t.Fatalf("request %s", request)
+	}
+}

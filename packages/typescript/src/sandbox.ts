@@ -1,8 +1,14 @@
 import type { ApiClient } from './api-client.js';
-import { MogeniusConflictError, MogeniusTimeoutError, MogeniusUnsupportedError } from './errors.js';
+import {
+  MogeniusConflictError,
+  MogeniusTimeoutError,
+  MogeniusUnsupportedError,
+  MogeniusValidationError,
+} from './errors.js';
 import { FileSystem } from './file-system.js';
 import { Process } from './process.js';
-import type { CodeLanguage, ExecuteResponse, SandboxInfo, SandboxState } from './types.js';
+import { openTunnel } from './tunnel.js';
+import type { CodeLanguage, ExecuteResponse, SandboxInfo, SandboxState, Tunnel, TunnelOptions } from './types.js';
 
 /** How often `waitUntil…` re-reads the sandbox. */
 const POLL_INTERVAL_MS = 1000;
@@ -27,11 +33,8 @@ export class Sandbox {
     private readonly language: CodeLanguage = 'python',
   ) {
     this.info = info;
-    this.process = new Process(api, info.namespace, info.id, language, () => ({
-      podName: this.info.podName,
-      containerName: this.info.containerName,
-    }));
-    this.fs = new FileSystem(api, info.namespace, info.id);
+    this.process = new Process(api, info.namespace, language, () => this.pod());
+    this.fs = new FileSystem(api, info.namespace, () => this.pod());
   }
 
   /*******************************************************************************************************************
@@ -76,12 +79,28 @@ export class Sandbox {
   get expiresAt(): string | null {
     return this.info.expiresAt;
   }
-  /** mogenius: pod and container the toolbox talks to. */
+  /** mogenius: pod and container that commands, files and sessions address. */
   get podName(): string | null {
     return this.info.podName;
   }
   get containerName(): string {
     return this.info.containerName;
+  }
+  /** mogenius: the sandbox's address inside the cluster; null while there is none. */
+  get serviceFQDN(): string | null {
+    return this.info.serviceFQDN;
+  }
+  /** mogenius: the Sandbox object that runs the pod; null while a claim is unbound. */
+  get sandboxName(): string | null {
+    return this.info.sandboxName;
+  }
+  /** mogenius: `Running` or `Suspended`. */
+  get operatingMode(): string | null {
+    return this.info.operatingMode;
+  }
+  /** mogenius: who created the sandbox. */
+  get createdBy(): string | null {
+    return this.info.createdBy;
   }
   /** Everything the platform knows, as returned. */
   get data(): SandboxInfo {
@@ -91,6 +110,21 @@ export class Sandbox {
   /*******************************************************************************************************************
    * lifecycle
    ******************************************************************************************************************/
+
+  /**
+   * Pod and container the pod routes address. A sandbox created without
+   * waiting has no pod at first, so one without is read again before giving up.
+   */
+  private async pod(): Promise<{ podName: string; containerName: string }> {
+    if (!this.info.podName) {
+      await this.refreshData();
+    }
+    const podName = this.info.podName;
+    if (!podName) {
+      throw new MogeniusConflictError(`Sandbox ${this.id} has no pod yet: wait until it is started.`);
+    }
+    return { podName, containerName: this.info.containerName };
+  }
 
   /** Reloads the sandbox from the platform. */
   async refreshData(): Promise<void> {
@@ -148,6 +182,22 @@ export class Sandbox {
   /** The container's working directory. */
   async getWorkDir(): Promise<string> {
     return this.oneLine('pwd');
+  }
+
+  /**
+   * mogenius: forwards a local port to `port` inside the sandbox through the
+   * platform's stream gateway, the way a port-forward does — for an HTTP
+   * server, a WebSocket or a database in the sandbox. HTTP, WebSockets, gRPC
+   * and plain TCP all pass; only bytes travel, the sandbox sees no
+   * credentials. Node only. Needs `organizationId`, `clusterId` and the
+   * stream gateway; close the tunnel when done.
+   */
+  async tunnel(port: number, options: TunnelOptions = {}): Promise<Tunnel> {
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      throw new MogeniusValidationError(`Port ${port} is not a TCP port.`, { source: 'sdk' });
+    }
+    const { podName } = await this.pod();
+    return openTunnel(this.api, { namespace: this.info.namespace, podName, port }, options);
   }
 
   /*******************************************************************************************************************

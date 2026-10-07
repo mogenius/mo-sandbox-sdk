@@ -207,3 +207,15 @@ describe('Sandbox lifecycle', () => {
     await expect(sandbox.archive()).rejects.toBeInstanceOf(MogeniusUnsupportedError);
   });
 });
+
+describe('Sandbox fields', () => {
+  it("exposes the platform's service fields", async () => {
+    const { fetch } = fakeFetch({ body: sandboxInfo() });
+    const sandbox = await new Mogenius({ ...CONFIG, fetch }).get('default-abc12');
+
+    expect(sandbox.serviceFQDN).toBe('default-k27tp.agent-sandbox.svc.cluster.local');
+    expect(sandbox.sandboxName).toBe('default-k27tp');
+    expect(sandbox.operatingMode).toBe('Running');
+    expect(sandbox.createdBy).toBe('jane@example.com');
+  });
+});
