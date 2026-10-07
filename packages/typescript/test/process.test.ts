@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Mogenius, MogeniusProcessExecutionTimeoutError } from '../src/index.js';
 import { buildCodeRunCommand, extractCharts, shellQuote } from '../src/process.js';
+import { PYTHON_BOOTSTRAP } from '../src/python-bootstrap.js';
 import { CONFIG, fakeFetch, sandboxInfo } from './helpers.js';
 
 const execResponse = (overrides: Record<string, unknown> = {}) => ({
@@ -81,9 +82,9 @@ describe('Process.executeCommand', () => {
 });
 
 describe('Process.codeRun', () => {
-  it('runs Python by default and strips chart artifacts out of stdout', async () => {
+  it('runs Python through the bootstrap and takes the charts out of stdout', async () => {
     const chart = { type: 'line', title: 'sales', png: 'iVBOR' };
-    const stdout = `hello\ndtn_artifact_k39fd2:${JSON.stringify(chart)}\nbye\n`;
+    const stdout = `hello\n__mo_chart__:${JSON.stringify(chart)}\nbye\n`;
     const { fetch, calls } = fakeFetch(
       { body: sandboxInfo() },
       { status: 201, body: execResponse({ result: stdout, artifacts: { stdout, stderr: '' } }) },
@@ -93,7 +94,8 @@ describe('Process.codeRun', () => {
     const response = await sandbox.process.codeRun('print("hello")', { argv: ['a b'], env: { X: '1' } }, 20);
 
     const command = (calls[1]!.body as { command: string }).command;
-    expect(command).toContain('python3 "$__mo_f" \'a b\'');
+    const bootstrap = Buffer.from(PYTHON_BOOTSTRAP, 'utf8').toString('base64');
+    expect(command).toContain(`python3 -c "$(printf %s '${bootstrap}' | base64 -d)" "$__mo_f" 'a b'`);
     expect(command).toContain(Buffer.from('print("hello")').toString('base64'));
     expect(command).toMatch(/exit \$__mo_rc$/);
     expect((calls[1]!.body as { env: unknown }).env).toEqual({ X: '1' });
@@ -123,9 +125,19 @@ describe('helpers', () => {
     expect(command).toContain(`'--flag' 'va'\\''lue'`);
   });
 
-  it('extractCharts leaves malformed markers alone', () => {
-    const { text, charts } = extractCharts('a\ndtn_artifact_k39fd2:{not json}\nb\n');
+  it('extractCharts reads the whole line, nested JSON included', () => {
+    const chart = { type: 'bar', title: 'sales', png: 'iVBOR', elements: [{ label: 'a', points: [[1, 2]] }] };
+    const { text, charts } = extractCharts(
+      `a\n__mo_chart__:${JSON.stringify(chart)}\r\nb\n__mo_chart__:{"type":"pie"}`,
+    );
+    expect(charts).toEqual([chart, { type: 'pie' }]);
+    expect(text).toBe('a\nb\n');
+  });
+
+  it('extractCharts leaves malformed markers and markers inside a line alone', () => {
+    const stdout = 'a\n__mo_chart__:{not json}\nsaid __mo_chart__:{"type":"line"}\n';
+    const { text, charts } = extractCharts(stdout);
     expect(charts).toEqual([]);
-    expect(text).toContain('{not json}');
+    expect(text).toBe(stdout);
   });
 });

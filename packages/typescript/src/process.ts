@@ -1,5 +1,6 @@
 import type { ApiClient } from './api-client.js';
 import { MogeniusConflictError, MogeniusError, MogeniusNotFoundError, MogeniusTimeoutError } from './errors.js';
+import { PYTHON_BOOTSTRAP } from './python-bootstrap.js';
 import type {
   Chart,
   CodeLanguage,
@@ -56,8 +57,8 @@ interface SessionExecuteResponseBody {
   output?: string;
 }
 
-/** Marker a Python run prints around each chart (a common convention, kept so existing parsers carry over). */
-const CHART_MARKER = /dtn_artifact_k39fd2:(\{.*?\})\n?/g;
+/** Start of the line the Python bootstrap prints for each matplotlib figure; the rest of the line is the chart JSON. */
+const CHART_MARKER = '__mo_chart__:';
 
 /**
  * Processes of a sandbox: run a command or a snippet of code and
@@ -343,6 +344,8 @@ export class Process {
    * Runs a snippet of code with the sandbox's default language (or `params.language`):
    * Python through `python3`, TypeScript through `tsx`, JavaScript through `node`.
    * The code travels base64-encoded, so quotes and newlines need no escaping.
+   * Figures a Python run draws with matplotlib come back as PNG charts in
+   * `artifacts.charts` — on `plt.show()` and for what is still open at the end.
    */
   async codeRun(
     code: string,
@@ -486,22 +489,30 @@ export function buildCodeRunCommand(code: string, language: CodeLanguage, argv: 
 }
 
 const INTERPRETERS: Record<CodeLanguage, { extension: string; interpreter: string }> = {
-  python: { extension: 'py', interpreter: 'python3' },
+  // the bootstrap runs the snippet and turns matplotlib figures into chart lines; it travels base64-encoded too
+  python: {
+    extension: 'py',
+    interpreter: `python3 -c "$(printf %s '${Buffer.from(PYTHON_BOOTSTRAP, 'utf8').toString('base64')}' | base64 -d)"`,
+  },
   typescript: { extension: 'ts', interpreter: 'tsx' },
   javascript: { extension: 'js', interpreter: 'node' },
 };
 
-/** Splits chart artifacts out of stdout; the rest is the program's own output. */
+/** Splits the chart lines out of stdout; the rest is the program's own output. */
 export function extractCharts(stdout: string): { text: string; charts: Chart[] } {
   const charts: Chart[] = [];
-  const text = stdout.replace(CHART_MARKER, (_match, json: string) => {
-    try {
-      charts.push(JSON.parse(json) as Chart);
-    } catch {
-      // not a chart after all: keep the line
-      return _match;
+  const kept: string[] = [];
+  // line by line, endings kept: a chart's JSON is the whole rest of its line
+  for (const line of stdout.split(/(?<=\n)/)) {
+    if (line.startsWith(CHART_MARKER)) {
+      try {
+        charts.push(JSON.parse(line.slice(CHART_MARKER.length)) as Chart);
+        continue;
+      } catch {
+        // not a chart after all: the line stays
+      }
     }
-    return '';
-  });
-  return { text, charts };
+    kept.push(line);
+  }
+  return { text: kept.join(''), charts };
 }

@@ -49,3 +49,29 @@ jobs:
         with:
           name: coverage
           path: packages/typescript/coverage/
+
+  go:
+    runs-on: [self-hosted]
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: packages/go
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: packages/go/go.mod
+          cache-dependency-path: packages/go/go.sum
+
+      - name: Format check
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...

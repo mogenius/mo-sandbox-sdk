@@ -22,6 +22,7 @@ await mogenius.delete(sandbox);
 | Package                                      | Language   | Status                                                   |
 | -------------------------------------------- | ---------- | -------------------------------------------------------- |
 | [`@mogenius/sandbox`](packages/typescript)   | TypeScript | lifecycle, `executeCommand`, `codeRun` — in development  |
+| [`…/mo-sandbox-sdk/packages/go`](packages/go) | Go         | the TypeScript SDK's surface in Go — in development      |
 | `mogenius-sandbox`                           | Python     | planned                                                  |
 | `openapi-specs/`                             | OpenAPI 3  | planned: generated clients for TypeScript, Python and Go |
 
@@ -43,6 +44,8 @@ npm install          # workspaces
 npm run build        # every package
 npm run test
 npm run lint
+
+cd packages/go && go test ./...   # the Go module
 ```
 
 Examples live in [`examples/`](examples); copy `.env.example` to `.env`, load it into the shell (`set -a; . ./.env; set +a`) and run them with `node examples/<name>.ts` (Node 24) or `npx tsx examples/<name>.ts`. `node --env-file=.env` works too, but it does not override a `MOGENIUS_*` variable that the shell already exports.

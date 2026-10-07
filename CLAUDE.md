@@ -11,11 +11,13 @@ is designed for drop-in use in agent frameworks. Sandboxes are `SandboxClaim` /
 
 ```
 packages/typescript/   @mogenius/sandbox — Mogenius, Sandbox, Process, FileSystem, errors
+packages/go/           Go module github.com/mogenius/mo-sandbox-sdk/packages/go — pkg/mogenius (Client, Sandbox,
+                       ProcessService, FileSystemService), pkg/types, pkg/options, pkg/errors; examples/ inside
 openapi-specs/         planned: sandbox-api.json, toolbox.json (MOG-4698) → generated clients (MOG-4699)
 examples/              runnable with `npx tsx`, read .env
 ```
 
-npm workspaces; run `npm install` at the root.
+npm workspaces; run `npm install` at the root. The Go module stands alone (tags `packages/go/vX.Y.Z`).
 
 ## Commands
 
@@ -24,6 +26,8 @@ npm run build        # tsup, ESM + CJS + d.ts
 npm run test         # vitest
 npm run lint         # eslint (typescript-eslint, prettier)
 npm run format
+
+cd packages/go && go test ./... && go vet ./... && gofmt -l .
 ```
 
 ## Rules
@@ -35,7 +39,13 @@ npm run format
 - **Unsupported is explicit.** What Kubernetes pods cannot do throws `MogeniusUnsupportedError` with the
   reason and the alternative; never silently degrade.
 - **Tests mock `fetch`** (`test/helpers.ts`), never the classes. Cover the request shape and the error
-  mapping for every new call.
+  mapping for every new call. Go: the same against an `httptest` platform (`pkg/mogenius/helpers_test.go`).
+- **Both SDKs move together.** A new route or call lands in TypeScript and Go; Go mirrors the TypeScript
+  behaviour with Go's established shapes (functional options, `context.Context` first, `map[string]any` where
+  agent frameworks return maps).
+- **codeRun's Python bootstrap exists twice** (`packages/typescript/src/python-bootstrap.ts`,
+  `packages/go/pkg/mogenius/code_run.py`): it runs the snippet and prints matplotlib figures as `__mo_chart__:` lines.
+  Change both; `TestPythonBootstrapMatchesTypeScript` fails when they differ.
 - Prettier: 120 columns, single quotes, trailing commas. ESM with `.js` import suffixes.
 - Git: never push or open PRs on your own; see the root CLAUDE.md of mogenius-ai-config.
 
