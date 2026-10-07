@@ -204,6 +204,50 @@ export interface ErrorBody {
 }
 
 /*********************************************************************************************************************
+ * sessions
+ ********************************************************************************************************************/
+
+/** A session: one long-lived shell in the sandbox where state carries over between commands. */
+export interface SessionInfo {
+  sessionId: string;
+  /** Commands run in the session so far, oldest first. */
+  commands: SessionCommand[];
+  /** mogenius: container the shell runs in. */
+  container: string;
+  /** mogenius */
+  createdAt: string;
+  /** mogenius */
+  lastUsedAt: string;
+}
+
+/** A command run in a session. */
+export interface SessionCommand {
+  /** The `cmdId` the exec call returned. */
+  id: string;
+  command: string;
+  /** Undefined while the command is still running. */
+  exitCode?: number;
+}
+
+/** Request of `executeSessionCommand()`. */
+export interface SessionExecuteRequest {
+  command: string;
+  /** Return right away with the `cmdId`; fetch result and logs later. */
+  runAsync?: boolean;
+  /** Seconds a synchronous call waits for the command (default 60); the command runs on past it. */
+  timeout?: number;
+}
+
+/** Response of `executeSessionCommand()`. */
+export interface SessionExecuteResponse {
+  cmdId: string;
+  /** Set when the command ended within the wait; absent for a background run or a command still running. */
+  exitCode?: number;
+  /** Output so far, stdout and stderr in arrival order; absent for a background run. */
+  output?: string;
+}
+
+/*********************************************************************************************************************
  * files
  ********************************************************************************************************************/
 

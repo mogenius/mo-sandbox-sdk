@@ -71,6 +71,32 @@ The stream goes through the platform's stream gateway (`MOGENIUS_STREAM_URL`, de
 `wss://k8s-cmd-stream.mogenius.com`) and needs `organizationId` and `clusterId` set, since the gateway does
 not take them from the key. Node 22+ (global `WebSocket`), or pass `webSocket` in the config.
 
+### Sessions
+
+A session is a shell of its own where state carries over: `cd`, `export`, a virtualenv. Commands run in it
+one at a time; a synchronous call waits up to `timeout` seconds (60) and the command runs on past that —
+fetch the result later, as after `runAsync`.
+
+```ts
+await sandbox.process.createSession('dev');
+await sandbox.process.executeSessionCommand('dev', { command: 'cd /tmp && export FOO=bar' });
+const { output } = await sandbox.process.executeSessionCommand('dev', { command: 'echo $FOO $PWD' }); // bar /tmp
+
+const { cmdId } = await sandbox.process.executeSessionCommand('dev', { command: 'npm test', runAsync: true });
+await sandbox.process.getSessionCommandLogs('dev', cmdId, (chunk) => process.stdout.write(chunk)); // live, until it ends
+const { exitCode } = await sandbox.process.getSessionCommand('dev', cmdId);
+
+const read = await sandbox.process.executeSessionCommand('dev', { command: 'read name; echo hi $name', runAsync: true });
+await sandbox.process.sendSessionCommandInput('dev', read.cmdId, 'jane\n');
+
+await sandbox.process.listSessions();
+await sandbox.process.deleteSession('dev');
+```
+
+Sessions live in the cluster's operator and are bound to the key that opened them. They end with
+`deleteSession`, after 30 minutes without a running command (operator setting), when the sandbox stops, or when
+a command runs `exit`. Following logs live goes over the stream gateway like `executeCommandStream`.
+
 ## Files
 
 `sandbox.fs` is the sandbox's file system. Paths are absolute inside the container or relative to its working

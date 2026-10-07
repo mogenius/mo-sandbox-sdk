@@ -27,9 +27,9 @@ export class MogeniusError extends Error {
 export class MogeniusUnauthorizedError extends MogeniusError {}
 /** The key may not do this (403): no EDITOR grant, no cluster role, or RBAC in the cluster. */
 export class MogeniusForbiddenError extends MogeniusError {}
-/** No sandbox, container or profile of that name (404). */
+/** No sandbox, container, profile, session or command of that name (404). */
 export class MogeniusNotFoundError extends MogeniusError {}
-/** The sandbox is in the wrong state for this: not bound yet, suspended, name taken (409). */
+/** The sandbox or session is in the wrong state for this: not bound yet, suspended, name taken, a command still running (409). */
 export class MogeniusConflictError extends MogeniusError {}
 /** The request itself is wrong (400): a bad label, env name, or parameter. */
 export class MogeniusValidationError extends MogeniusError {}
@@ -69,11 +69,15 @@ export function errorFromResponse(status: number, body: ErrorBody | string | nul
     case 'CONTAINER_NOT_FOUND':
     case 'SANDBOX_PROFILE_NOT_FOUND':
     case 'FILE_NOT_FOUND':
+    case 'SESSION_NOT_FOUND':
+    case 'SESSION_COMMAND_NOT_FOUND':
       return new MogeniusNotFoundError(message, details);
     case 'SANDBOX_NOT_READY':
     case 'SANDBOX_ALREADY_EXISTS':
     case 'FILE_EXISTS':
     case 'FILE_NOT_EMPTY':
+    case 'SESSION_ALREADY_EXISTS':
+    case 'SESSION_BUSY':
       return new MogeniusConflictError(message, details);
     case 'FILE_PERMISSION_DENIED':
       return new MogeniusForbiddenError(message, details);

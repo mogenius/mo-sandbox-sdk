@@ -1,6 +1,16 @@
 import type { ApiClient } from './api-client.js';
-import { MogeniusConflictError, MogeniusError, MogeniusNotFoundError } from './errors.js';
-import type { Chart, CodeLanguage, CodeRunParams, ExecEvent, ExecuteResponse } from './types.js';
+import { MogeniusConflictError, MogeniusError, MogeniusNotFoundError, MogeniusTimeoutError } from './errors.js';
+import type {
+  Chart,
+  CodeLanguage,
+  CodeRunParams,
+  ExecEvent,
+  ExecuteResponse,
+  SessionCommand,
+  SessionExecuteRequest,
+  SessionExecuteResponse,
+  SessionInfo,
+} from './types.js';
 
 /** Default when a call names no timeout. */
 export const DEFAULT_COMMAND_TIMEOUT_SECONDS = 10;
@@ -25,6 +35,25 @@ interface ExecuteCommandResponseBody {
   truncated: boolean;
   container: string;
   durationMs: number;
+}
+
+/** What the platform answers on the session routes. */
+interface SessionInfoBody {
+  sessionId: string;
+  container: string;
+  createdAt: string;
+  lastUsedAt: string;
+  commands: SessionCommandBody[];
+}
+interface SessionCommandBody {
+  id: string;
+  command: string;
+  exitCode: number | null;
+}
+interface SessionExecuteResponseBody {
+  cmdId: string;
+  exitCode: number | null;
+  output?: string;
 }
 
 /** Marker a Python run prints around each chart (a common convention, kept so existing parsers carry over). */
@@ -88,6 +117,16 @@ export class Process {
       ...(timeout > 0 ? { timeout: Math.ceil(timeout) } : {}),
     });
 
+    yield* this.streamEvents(socket, request);
+  }
+
+  /**
+   * Reads one gateway stream into events: output frames by their stream tag,
+   * control frames into the final `exit` event or an error. `request`, when
+   * given, is sent as the gateway asks for it (an exec stream); a log follow
+   * has nothing to send. Leaving the generator closes the socket.
+   */
+  private async *streamEvents(socket: WebSocket, request?: string): AsyncGenerator<ExecEvent, void, void> {
     const events = new EventQueue<ExecEvent>();
     let exitCode: number | undefined;
     let truncated = false;
@@ -102,7 +141,9 @@ export class Process {
       }
       const text = message.data;
       if (text === STREAM_REQUEST_PROMPT) {
-        socket.send(request);
+        if (request !== undefined) {
+          socket.send(request);
+        }
       } else if (text.startsWith(STREAM_EXIT_PREFIX)) {
         exitCode = Number(text.slice(STREAM_EXIT_PREFIX.length));
       } else if (text === STREAM_TRUNCATED) {
@@ -135,6 +176,135 @@ export class Process {
         socket.close(1000);
       }
     }
+  }
+
+  /*******************************************************************************************************************
+   * sessions
+   ******************************************************************************************************************/
+
+  /**
+   * Opens a session: a shell of its own in the sandbox where state carries
+   * over from command to command (`cd`, `export`, a virtualenv). Commands run
+   * in it one at a time. The session lives until `deleteSession`, until it
+   * has idled for the cluster's timeout (30 minutes by default), or until the
+   * sandbox stops.
+   *
+   * @param sessionId a name of your choice, unique within the sandbox
+   * @param container mogenius: container the shell runs in; the sandbox's own when absent
+   */
+  async createSession(sessionId: string, container?: string): Promise<SessionInfo> {
+    const path = this.sessionPath();
+    // the pod route would take the pod's first container; a sandbox means its own
+    const target = container || this.pod().containerName;
+    const body = await this.api.post<SessionInfoBody>(path, {
+      sessionId,
+      ...(target ? { container: target } : {}),
+    });
+    return toSessionInfo(body);
+  }
+
+  async getSession(sessionId: string): Promise<SessionInfo> {
+    return toSessionInfo(await this.api.get<SessionInfoBody>(this.sessionPath(sessionId)));
+  }
+
+  /** Sessions of this sandbox that your key opened and that are still running. */
+  async listSessions(): Promise<SessionInfo[]> {
+    const body = await this.api.get<SessionInfoBody[]>(this.sessionPath());
+    return body.map(toSessionInfo);
+  }
+
+  /** Ends the session's shell. A command still running in it is stopped with it. */
+  async deleteSession(sessionId: string): Promise<void> {
+    await this.api.delete<void>(this.sessionPath(sessionId));
+  }
+
+  /**
+   * Runs a command in the session. Synchronous by default: waits up to
+   * `timeout` seconds (60) and answers with the output and exit code. A
+   * command still running when the wait is over is not stopped — the answer
+   * then has no exit code and the result is fetched later, like after
+   * `runAsync: true`, which returns right away with the `cmdId`. An `exit`
+   * in the command ends the shell and with it the session.
+   */
+  async executeSessionCommand(sessionId: string, request: SessionExecuteRequest): Promise<SessionExecuteResponse> {
+    const body = await this.api.post<SessionExecuteResponseBody>(`${this.sessionPath(sessionId)}/exec`, {
+      command: request.command,
+      ...(request.runAsync ? { runAsync: true } : {}),
+      ...(request.timeout && request.timeout > 0 ? { timeout: Math.ceil(request.timeout) } : {}),
+    });
+    return {
+      cmdId: body.cmdId,
+      ...(body.exitCode === null || body.exitCode === undefined ? {} : { exitCode: body.exitCode }),
+      ...(body.output === undefined ? {} : { output: body.output }),
+    };
+  }
+
+  async getSessionCommand(sessionId: string, cmdId: string): Promise<SessionCommand> {
+    return toSessionCommand(
+      await this.api.get<SessionCommandBody>(`${this.sessionPath(sessionId)}/command/${encodeURIComponent(cmdId)}`),
+    );
+  }
+
+  /**
+   * The output of a session command. Without `onLogs`: what it has printed
+   * so far, stdout and stderr in arrival order. With `onLogs`: follows the
+   * command live over the stream gateway — what was printed first, then
+   * every new chunk as it comes — and resolves when the command has ended.
+   */
+  async getSessionCommandLogs(sessionId: string, cmdId: string): Promise<string>;
+  async getSessionCommandLogs(sessionId: string, cmdId: string, onLogs: (chunk: string) => void): Promise<void>;
+  async getSessionCommandLogs(
+    sessionId: string,
+    cmdId: string,
+    onLogs?: (chunk: string) => void,
+  ): Promise<string | void> {
+    if (!onLogs) {
+      const body = await this.api.get<{ output: string }>(
+        `${this.sessionPath(sessionId)}/command/${encodeURIComponent(cmdId)}/logs`,
+      );
+      return body.output;
+    }
+    const { podName } = this.pod();
+    if (!podName) {
+      throw new MogeniusConflictError('The sandbox has no pod: there is no session to follow.');
+    }
+    const socket = this.api.openStream({
+      type: 'CLUSTER__POD_SESSION_LOG',
+      cmd: 'session-log',
+      namespace: this.namespace,
+      podName,
+      sessionId,
+      cmdId,
+    });
+    const decoder = new TextDecoder();
+    for await (const event of this.streamEvents(socket)) {
+      if (event.type !== 'exit') {
+        onLogs(decoder.decode(event.data, { stream: true }));
+      }
+    }
+    const rest = decoder.decode();
+    if (rest) {
+      onLogs(rest);
+    }
+  }
+
+  /**
+   * Writes to the standard input of the command running in the session —
+   * what `read` or an interactive program is waiting for. Written verbatim:
+   * end a line with `\n`.
+   */
+  async sendSessionCommandInput(sessionId: string, cmdId: string, data: string): Promise<void> {
+    await this.api.post<void>(`${this.sessionPath(sessionId)}/command/${encodeURIComponent(cmdId)}/input`, { data });
+  }
+
+  /** Sessions belong to the pod, not to the sandbox object: the platform serves them on its pod routes. */
+  private sessionPath(sessionId?: string): string {
+    const { podName } = this.pod();
+    if (!podName) {
+      throw new MogeniusConflictError('The sandbox has no pod yet: wait until it is started before using sessions.');
+    }
+    const base = `/resource/session/${encodeURIComponent(this.namespace)}/${encodeURIComponent(podName)}`;
+    return sessionId === undefined ? base : `${base}/${encodeURIComponent(sessionId)}`;
   }
 
   /**
@@ -198,11 +368,39 @@ export class Process {
   }
 }
 
+function toSessionCommand(body: SessionCommandBody): SessionCommand {
+  return {
+    id: body.id,
+    command: body.command,
+    ...(body.exitCode === null || body.exitCode === undefined ? {} : { exitCode: body.exitCode }),
+  };
+}
+
+function toSessionInfo(body: SessionInfoBody): SessionInfo {
+  return {
+    sessionId: body.sessionId,
+    commands: (body.commands ?? []).map(toSessionCommand),
+    container: body.container,
+    createdAt: body.createdAt,
+    lastUsedAt: body.lastUsedAt,
+  };
+}
+
 /** The error a stream that closed without an exit code stands for. */
 function streamCloseError(event: CloseEvent, streamUrl: string): MogeniusError {
   const reason = event.reason || '';
   if (reason === 'POD_DOES_NOT_EXIST') {
     return new MogeniusNotFoundError('The sandbox pod does not exist (any more).', { source: 'operator' });
+  }
+  if (reason === 'OPERATOR_NOT_CONNECTED') {
+    return new MogeniusTimeoutError(
+      'The cluster operator did not connect to the stream gateway. It dials the address the platform gives it (MO_PRODUCT_NEST__K8S_CMD_STREAM_WEBSOCKET_HOST), which must be reachable from where the operator runs.',
+      { source: 'api', errorCode: 'OPERATOR_TIMEOUT' },
+    );
+  }
+  // the operator refused the request before the stream opened
+  if (/session not found|command not found in the session|the session has ended/i.test(reason)) {
+    return new MogeniusNotFoundError(reason, { source: 'operator' });
   }
   if (event.code === 1006) {
     return new MogeniusError(

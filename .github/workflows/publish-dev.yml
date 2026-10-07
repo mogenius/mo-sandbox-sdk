@@ -1,0 +1,54 @@
+name: Publish dev
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  # npm provenance attestation
+  id-token: write
+
+# Only the newest main commit is worth a dev build.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish-dev:
+    # The release PR merge is published as a real release by publish.yml.
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(main): release') }}
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm run test
+
+      # Next patch of the last release plus the run number, e.g. 0.1.0 -> 0.1.1-dev.42,
+      # so dev builds sort above the last release and below the next one.
+      - name: Set dev version
+        run: |
+          VERSION=$(node -p "const [ma, mi, pa] = require('./packages/typescript/package.json').version.split('-')[0].split('.'); \`\${ma}.\${mi}.\${Number(pa) + 1}-dev.${GITHUB_RUN_NUMBER}\`")
+          npm version "$VERSION" -w packages/typescript --no-git-tag-version
+          echo "Publishing $VERSION"
+
+      - name: Publish @mogenius/sandbox@dev
+        env:
+          # npmjs.com automation token with publish rights on the @mogenius scope
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish -w packages/typescript --provenance --access public --tag dev

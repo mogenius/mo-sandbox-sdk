@@ -57,5 +57,8 @@ npm run format
 | `fs.createFolder()`, `fs.moveFiles()`, `fs.deleteFile()` | `POST …/files/folder` · `POST …/files/move` · `DELETE …/files` |
 | `fs.setFilePermissions()`             | `POST …/toolbox/files/permissions`                        |
 | `fs.searchFiles()`, `fs.findFiles()`, `fs.replaceInFiles()` | `GET …/files/search` · `GET …/files/find` · `POST …/files/replace` |
+| `process.createSession()`, `listSessions()`, `getSession()`, `deleteSession()` | pod routes, not sandbox routes: `POST`/`GET /resource/session/:namespace/:podName` · `GET`/`DELETE …/:sessionId` (`podName` from the sandbox data; `container` defaults to the sandbox's) |
+| `process.executeSessionCommand()`      | `POST /resource/session/:namespace/:podName/:sessionId/exec` (`timeout` = wait of a synchronous call, the command runs on) |
+| `process.getSessionCommand()`, `getSessionCommandLogs()`, `sendSessionCommandInput()` | `GET …/:sessionId/command/:cmdId` · `GET …/command/:cmdId/logs` · `POST …/command/:cmdId/input`; live follow over the stream gateway `type=CLUSTER__POD_SESSION_LOG&cmd=session-log&namespace&podName&sessionId&cmdId` with the exec stream's frames |
 
 Headers: `authorization: Bearer <key>`, `organization-id`, `cluster-id`, optional `workspace-name`.

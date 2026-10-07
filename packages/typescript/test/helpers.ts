@@ -82,3 +82,50 @@ export const CONFIG = {
   organizationId: 'org-1',
   clusterId: 'cluster-1',
 };
+
+/**
+ * A WebSocket the test drives: it records the URL it was opened with and
+ * what was sent, and lets the test play the gateway's frames and close.
+ */
+export class FakeWebSocket {
+  static instances: FakeWebSocket[] = [];
+  readonly CONNECTING = 0;
+  readonly OPEN = 1;
+  readonly CLOSING = 2;
+  readonly CLOSED = 3;
+  readyState = 1;
+  binaryType = 'blob';
+  closedWith: number | undefined;
+  sent: string[] = [];
+  onmessage: ((event: { data: string | ArrayBuffer }) => void) | null = null;
+  onclose: ((event: { code: number; reason: string }) => void) | null = null;
+  onerror: (() => void) | null = null;
+
+  constructor(readonly url: URL) {
+    FakeWebSocket.instances.push(this);
+  }
+
+  send(data: string): void {
+    this.sent.push(data);
+  }
+
+  close(code?: number): void {
+    this.readyState = 3;
+    this.closedWith = code;
+  }
+
+  /** The gateway sends a frame. */
+  frame(data: string | Uint8Array): void {
+    this.onmessage?.({ data: typeof data === 'string' ? data : new Uint8Array(data).buffer });
+  }
+
+  /** The gateway closes. */
+  end(code: number, reason = ''): void {
+    this.readyState = 3;
+    this.onclose?.({ code, reason });
+  }
+}
+
+/** A binary stream frame: the tag byte and the text behind it. */
+export const streamBytes = (tag: number, text: string): Uint8Array =>
+  new Uint8Array([tag, ...Buffer.from(text, 'utf8')]);
