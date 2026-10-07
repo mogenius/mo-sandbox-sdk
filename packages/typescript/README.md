@@ -2,6 +2,14 @@
 
 TypeScript SDK for mogenius sandboxes: lifecycle, commands, code runs and files inside sandbox pods.
 
+The package is published to GitHub Packages. Point the `@mogenius` scope there in your `.npmrc`, with a GitHub token
+that has `read:packages`:
+
+```ini
+@mogenius:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_NPM_TOKEN}
+```
+
 ```bash
 npm install @mogenius/sandbox
 ```
