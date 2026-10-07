@@ -5,16 +5,11 @@ own cluster. Module `github.com/mogenius/mo-sandbox-sdk/packages/go`.
 
 ```bash
 go get github.com/mogenius/mo-sandbox-sdk/packages/go@latest
+go mod tidy
 ```
 
-The repository is private, so Go fetches it with your git access. Once per machine:
-
-```bash
-go env -w GOPRIVATE='github.com/mogenius/*'
-git config --global url."git@github.com:".insteadOf "https://github.com/"   # or a token in ~/.netrc
-```
-
-Releases are tagged `packages/go/vX.Y.Z`; `@main` gets the latest commit.
+Releases are tagged `packages/go/vX.Y.Z`; `@main` gets the latest commit. With `GOPRIVATE` covering
+`github.com/mogenius`, Go skips the module proxy and fetches with git, which then needs working access to GitHub.
 
 ```go
 client, err := mogenius.NewClient() // MOGENIUS_API_KEY, MOGENIUS_CLUSTER_ID, … from the environment
