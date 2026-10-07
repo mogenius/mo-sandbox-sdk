@@ -7,8 +7,6 @@ on:
 
 permissions:
   contents: read
-  # npm provenance attestation
-  id-token: write
 
 # Only the newest main commit is worth a dev build.
 concurrency:
@@ -18,7 +16,7 @@ concurrency:
 jobs:
   publish-dev:
     # The release PR merge is published as a real release by publish.yml.
-    if: ${{ !startsWith(github.event.head_commit.message, 'chore(main): release') }}
+    if: "!startsWith(github.event.head_commit.message, 'chore(main): release')"
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -49,6 +47,7 @@ jobs:
 
       - name: Publish @mogenius/sandbox@dev
         env:
-          # npmjs.com automation token with publish rights on the @mogenius scope
+          # npmjs.com granular access token: read and write on @mogenius, Bypass 2FA, expires after 90 days at most
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish -w packages/typescript --provenance --access public --tag dev
+        # No --provenance: npm accepts it only from public repositories on GitHub-hosted runners
+        run: npm publish -w packages/typescript --access public --tag dev

@@ -7,8 +7,6 @@ on:
 
 permissions:
   contents: read
-  # npm provenance attestation
-  id-token: write
 
 # The tag is cut by release-please; never cancel a release run.
 concurrency:
@@ -48,6 +46,7 @@ jobs:
 
       - name: Publish @mogenius/sandbox
         env:
-          # npmjs.com automation token with publish rights on the @mogenius scope
+          # npmjs.com granular access token: read and write on @mogenius, Bypass 2FA, expires after 90 days at most
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish -w packages/typescript --provenance --access public
+        # No --provenance: npm accepts it only from public repositories on GitHub-hosted runners
+        run: npm publish -w packages/typescript --access public
