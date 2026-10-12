@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_API_URL,
   DEFAULT_NAMESPACE,
+  DEFAULT_PROFILE,
   errorFromResponse,
   MogeniusConflictError,
   MogeniusError,
@@ -33,6 +34,7 @@ describe('resolveConfig', () => {
     const config = resolveConfig({ apiKey: 'k' });
     expect(config.apiUrl).toBe(DEFAULT_API_URL);
     expect(config.namespace).toBe(DEFAULT_NAMESPACE);
+    expect(config.profile).toBe(DEFAULT_PROFILE);
     expect(config.organizationId).toBeUndefined();
     expect(config.clusterId).toBeUndefined();
   });
@@ -43,6 +45,7 @@ describe('resolveConfig', () => {
     process.env.MOGENIUS_ORGANIZATION_ID = 'org-env';
     process.env.MOGENIUS_CLUSTER_ID = 'cluster-env';
     process.env.MOGENIUS_SANDBOX_NAMESPACE = 'ns-env';
+    process.env.MOGENIUS_SANDBOX_PROFILE = 'pool-env';
 
     const fromEnv = resolveConfig();
     expect(fromEnv).toMatchObject({
@@ -51,12 +54,15 @@ describe('resolveConfig', () => {
       organizationId: 'org-env',
       clusterId: 'cluster-env',
       namespace: 'ns-env',
+      profile: 'pool-env',
     });
 
     const explicit = resolveConfig({ apiKey: 'k', target: 'from-target', clusterId: 'c' });
     expect(explicit.namespace).toBe('from-target');
     expect(explicit.clusterId).toBe('c');
     expect(explicit.organizationId).toBe('org-env');
+    expect(explicit.profile).toBe('pool-env');
+    expect(resolveConfig({ apiKey: 'k', profile: 'pool-own' }).profile).toBe('pool-own');
   });
 });
 

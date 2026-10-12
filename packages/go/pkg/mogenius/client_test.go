@@ -48,6 +48,67 @@ func TestConfigFallsBackToTheEnvironment(t *testing.T) {
 	}
 }
 
+func TestConfigResolvesTheDefaultProfile(t *testing.T) {
+	newFakePlatform(t)
+	t.Setenv("MOGENIUS_API_KEY", "mo_pat:env")
+
+	config, err := resolveConfig(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.profile != DefaultProfile {
+		t.Fatalf("profile = %q, want %q", config.profile, DefaultProfile)
+	}
+
+	t.Setenv("MOGENIUS_SANDBOX_PROFILE", " gpu ")
+	if config, err = resolveConfig(nil); err != nil || config.profile != "gpu" {
+		t.Fatalf("profile from the environment = %q, %v", config.profile, err)
+	}
+
+	// explicit config wins over the environment
+	if config, err = resolveConfig(&types.MogeniusConfig{Profile: "big"}); err != nil || config.profile != "big" {
+		t.Fatalf("profile from the config = %q, %v", config.profile, err)
+	}
+}
+
+func TestCreateClaimsFromTheConfiguredProfile(t *testing.T) {
+	answer := reply{status: 201, body: sandboxJSON(map[string]any{"state": "creating"})}
+	tests := []struct {
+		name    string
+		env     string
+		config  string
+		params  any
+		profile string
+	}{
+		{name: "nothing set", params: nil, profile: "default"},
+		{name: "environment", env: "foo", params: nil, profile: "foo"},
+		{name: "config over environment", env: "foo", config: "bar", params: nil, profile: "bar"},
+		{name: "params over config", env: "foo", config: "bar", params: types.SnapshotParams{Snapshot: "baz"}, profile: "baz"},
+		{name: "empty snapshot takes the config", config: "bar", params: &types.SnapshotParams{}, profile: "bar"},
+		{name: "image without snapshot", config: "bar", params: types.ImageParams{Image: "python:3.12-slim"}, profile: "bar"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFakePlatform(t, answer)
+			t.Setenv("MOGENIUS_SANDBOX_PROFILE", tt.env)
+			config := f.config()
+			config.Profile = tt.config
+			client, err := NewClientWithConfig(config)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if _, err := client.Create(context.Background(), tt.params, options.WithWaitForStart(false)); err != nil {
+				t.Fatal(err)
+			}
+			body := f.recorded()[0].json(t).(map[string]any)
+			if body["profile"] != tt.profile {
+				t.Fatalf("profile = %v, want %q", body["profile"], tt.profile)
+			}
+		})
+	}
+}
+
 func TestCreateFromASnapshot(t *testing.T) {
 	f := newFakePlatform(t, reply{status: 201, body: sandboxJSON(map[string]any{"labels": map[string]any{"project": "demo"}})})
 	interval := 30

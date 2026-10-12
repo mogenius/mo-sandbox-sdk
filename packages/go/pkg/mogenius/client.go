@@ -37,6 +37,8 @@ const (
 type Client struct {
 	api       *apiClient
 	namespace string
+	// profile is the warm pool Create claims from when the params name none.
+	profile string
 }
 
 // NewClient builds a client from the environment: MOGENIUS_API_KEY and,
@@ -52,7 +54,7 @@ func NewClientWithConfig(config *types.MogeniusConfig) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Client{api: &apiClient{cfg: resolved}, namespace: resolved.namespace}, nil
+	return &Client{api: &apiClient{cfg: resolved}, namespace: resolved.namespace, profile: resolved.profile}, nil
 }
 
 // Close releases the client. It holds nothing between calls, so there is
@@ -98,6 +100,9 @@ func (c *Client) Create(ctx context.Context, params any, opts ...func(*options.C
 	default:
 		return nil, sdkerrors.NewMogeniusValidationError(
 			fmt.Sprintf("Create takes types.SnapshotParams or types.ImageParams, not %T.", params), nil)
+	}
+	if snapshot == "" {
+		snapshot = c.profile
 	}
 	language := base.Language
 	if language == "" {

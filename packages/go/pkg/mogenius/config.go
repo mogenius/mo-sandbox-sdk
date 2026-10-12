@@ -13,6 +13,7 @@ const (
 	DefaultAPIURL    = "https://platform-api.mogenius.com"
 	DefaultStreamURL = "wss://k8s-cmd-stream.mogenius.com"
 	DefaultNamespace = "agent-sandbox"
+	DefaultProfile   = "default"
 )
 
 // resolvedConfig is everything a sandbox needs from the config, with the
@@ -24,6 +25,7 @@ type resolvedConfig struct {
 	organizationID string
 	clusterID      string
 	namespace      string
+	profile        string
 	workspaceName  string
 	httpClient     *http.Client
 }
@@ -52,6 +54,7 @@ func resolveConfig(config *types.MogeniusConfig) (*resolvedConfig, error) {
 		organizationID: first(config.OrganizationID, env("MOGENIUS_ORGANIZATION_ID")),
 		clusterID:      first(config.ClusterID, env("MOGENIUS_CLUSTER_ID")),
 		namespace:      first(config.Namespace, config.Target, env("MOGENIUS_SANDBOX_NAMESPACE"), DefaultNamespace),
+		profile:        first(config.Profile, env("MOGENIUS_SANDBOX_PROFILE"), DefaultProfile),
 		workspaceName:  first(config.WorkspaceName, env("MOGENIUS_WORKSPACE_NAME")),
 		httpClient:     httpClient,
 	}, nil

@@ -37,6 +37,9 @@ type MogeniusConfig struct {
 	// mogenius: Namespace is the Kubernetes namespace the sandbox chart puts sandboxes in
 	// (sandboxes.namespace.name). Env: MOGENIUS_SANDBOX_NAMESPACE. Default: agent-sandbox
 	Namespace string
+	// mogenius: Profile is the warm pool Create claims from when the params name none.
+	// Env: MOGENIUS_SANDBOX_PROFILE. Default: default
+	Profile string
 	// mogenius: WorkspaceName is the workspace to act through when the key has no cluster role.
 	// Env: MOGENIUS_WORKSPACE_NAME.
 	WorkspaceName string
@@ -73,7 +76,8 @@ type SandboxBaseParams struct {
 // profile's warm pool, ready in seconds.
 type SnapshotParams struct {
 	SandboxBaseParams
-	// Snapshot is the profile: SandboxTemplate and SandboxWarmPool of that name. Default: default
+	// Snapshot is the profile: SandboxTemplate and SandboxWarmPool of that name. Default: the
+	// configured profile (MogeniusConfig.Profile, MOGENIUS_SANDBOX_PROFILE), otherwise default
 	Snapshot string
 }
 
@@ -83,7 +87,8 @@ type ImageParams struct {
 	SandboxBaseParams
 	// Image is the container image, e.g. python:3.12-slim.
 	Image string
-	// mogenius: Snapshot is the profile whose pod template is used around the image. Default: default
+	// mogenius: Snapshot is the profile whose pod template is used around the image. Default: the
+	// configured profile (MogeniusConfig.Profile, MOGENIUS_SANDBOX_PROFILE), otherwise default
 	Snapshot string
 }
 

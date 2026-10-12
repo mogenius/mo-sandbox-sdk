@@ -34,23 +34,27 @@ interface ListResponseBody {
 export class Mogenius {
   private readonly api: ApiClient;
   private readonly namespace: string;
+  /** The warm pool `create()` claims from when the params name none. */
+  private readonly profile: string;
 
   constructor(config: MogeniusConfig = {}) {
     const resolved = resolveConfig(config);
     this.api = new ApiClient(resolved);
     this.namespace = resolved.namespace;
+    this.profile = resolved.profile;
   }
 
   /**
    * Creates a sandbox and, by default, waits until it is started. Without
    * `image` it is claimed from the profile's warm pool and ready in seconds;
    * with `image` a pod is started from the profile's template with that image.
+   * Without `snapshot` the profile is the configured one (`default` unless set).
    */
   async create(params: CreateSandboxParams = {}, options: CreateSandboxOptions = {}): Promise<Sandbox> {
     const timeout = options.timeout ?? 60;
     const info = await this.api.post<SandboxInfo>(`/sandbox/${encodeURIComponent(this.namespace)}`, {
       ...(params.name ? { name: params.name } : {}),
-      ...(params.snapshot ? { profile: params.snapshot } : {}),
+      profile: params.snapshot || this.profile,
       ...('image' in params && params.image ? { image: params.image } : {}),
       ...(params.labels ? { labels: params.labels } : {}),
       ...(params.envVars && Object.keys(params.envVars).length > 0 ? { env: params.envVars } : {}),
