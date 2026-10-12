@@ -28,7 +28,18 @@ describe('Mogenius.create', () => {
       'cluster-id': 'cluster-1',
       'content-type': 'application/json',
     });
-    expect(call.body).toEqual({ waitForStart: true, waitTimeoutSeconds: 60 });
+    expect(call.body).toEqual({ profile: 'default', waitForStart: true, waitTimeoutSeconds: 60 });
+  });
+
+  it('claims from the configured profile unless the params name one', async () => {
+    const { fetch, calls } = fakeFetch({ status: 201, body: sandboxInfo({ state: 'creating' }) });
+    const mogenius = new Mogenius({ ...CONFIG, fetch, profile: 'big' });
+
+    await mogenius.create({}, { timeout: 0 });
+    await mogenius.create({ snapshot: 'gpu' }, { timeout: 0 });
+    await mogenius.create({ image: 'python:3.13' }, { timeout: 0 });
+
+    expect(calls.map((call) => (call.body as { profile?: string }).profile)).toEqual(['big', 'gpu', 'big']);
   });
 
   // The public parameter names travel through unchanged and land on the platform's fields.
@@ -68,7 +79,7 @@ describe('Mogenius.create', () => {
     const { fetch, calls } = fakeFetch({ status: 201, body: sandboxInfo({ state: 'creating', podName: null }) });
     const sandbox = await new Mogenius({ ...CONFIG, fetch }).create({}, { timeout: 0 });
     expect(sandbox.state).toBe('creating');
-    expect(calls[0]!.body).toEqual({ waitForStart: false });
+    expect(calls[0]!.body).toEqual({ profile: 'default', waitForStart: false });
     expect(calls).toHaveLength(1);
   });
 

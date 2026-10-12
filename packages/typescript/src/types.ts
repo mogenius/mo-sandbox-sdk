@@ -22,6 +22,11 @@ export interface MogeniusConfig {
   namespace?: string;
   /** Alias of `namespace`, for programs that pass `target`. */
   target?: string;
+  /**
+   * mogenius: the warm pool `create()` claims from when the params name none.
+   * Env: `MOGENIUS_SANDBOX_PROFILE`. Default `default`.
+   */
+  profile?: string;
   /** Workspace to act through when the key has no cluster role. Header `workspace-name`. */
   workspaceName?: string;
   /**
@@ -43,6 +48,7 @@ export interface ResolvedConfig {
   organizationId: string | undefined;
   clusterId: string | undefined;
   namespace: string;
+  profile: string;
   workspaceName: string | undefined;
   fetch: typeof fetch;
   webSocket: typeof WebSocket | undefined;
@@ -72,14 +78,20 @@ export interface CreateSandboxBaseParams {
 
 /** Create from a profile (`snapshot`). The profile's warm pool answers in seconds. */
 export interface CreateSandboxFromSnapshotParams extends CreateSandboxBaseParams {
-  /** Profile = SandboxTemplate and SandboxWarmPool of that name. Default `default`. */
+  /**
+   * Profile = SandboxTemplate and SandboxWarmPool of that name. Default: the configured
+   * `profile` (`MOGENIUS_SANDBOX_PROFILE`), otherwise `default`.
+   */
   snapshot?: string;
 }
 
 /** Create from an image: a Sandbox stamped from the profile's template with this image. A pod start. */
 export interface CreateSandboxFromImageParams extends CreateSandboxBaseParams {
   image: string;
-  /** Profile whose pod template is used around the image. Default `default`. */
+  /**
+   * Profile whose pod template is used around the image. Default: the configured
+   * `profile` (`MOGENIUS_SANDBOX_PROFILE`), otherwise `default`.
+   */
   snapshot?: string;
 }
 

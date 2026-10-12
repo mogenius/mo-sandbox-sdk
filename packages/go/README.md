@@ -13,7 +13,7 @@ Releases are tagged `packages/go/vX.Y.Z`; `@main` gets the latest commit. With `
 
 ```go
 client, err := mogenius.NewClient() // MOGENIUS_API_KEY, MOGENIUS_CLUSTER_ID, … from the environment
-sandbox, err := client.Create(ctx, nil) // claimed from the default warm pool, started
+sandbox, err := client.Create(ctx, nil) // claimed from the configured warm pool (`default` unless set), started
 result, err := sandbox.Process.ExecuteCommand(ctx, "python3 --version")
 fmt.Println(result.ExitCode, result.Result)
 err = sandbox.Delete(ctx)
@@ -40,6 +40,7 @@ explicit values, and empty fields still fall back to the environment.
 | `OrganizationID` | `MOGENIUS_ORGANIZATION_ID`   | taken from the key when it has one  |
 | `ClusterID`      | `MOGENIUS_CLUSTER_ID`        | taken from the key when it has one  |
 | `Namespace`      | `MOGENIUS_SANDBOX_NAMESPACE` | `agent-sandbox` (alias: `Target`)   |
+| `Profile`        | `MOGENIUS_SANDBOX_PROFILE`   | `default` — the warm pool `Create` claims from when the params name none |
 | `WorkspaceName`  | `MOGENIUS_WORKSPACE_NAME`    | none — for keys without a cluster role |
 | `StreamURL`      | `MOGENIUS_STREAM_URL`        | `wss://k8s-cmd-stream.mogenius.com` |
 | `HTTPClient`     | —                            | `http.DefaultClient`                |

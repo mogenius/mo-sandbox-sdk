@@ -23,6 +23,7 @@ npm install @mogenius/sandbox
 | `organizationId` | `MOGENIUS_ORGANIZATION_ID`   | taken from the key when it has one  |
 | `clusterId`      | `MOGENIUS_CLUSTER_ID`        | taken from the key when it has one  |
 | `namespace`      | `MOGENIUS_SANDBOX_NAMESPACE` | `agent-sandbox` (alias: `target`)   |
+| `profile`        | `MOGENIUS_SANDBOX_PROFILE`   | `default` — the warm pool `create()` claims from when the params name none |
 
 ```ts
 import { Mogenius } from '@mogenius/sandbox';
@@ -33,7 +34,7 @@ const mogenius = new Mogenius({ apiKey: process.env.MOGENIUS_API_KEY, clusterId:
 ## Sandboxes
 
 ```ts
-// from the default profile's warm pool: bound and started in seconds
+// from the configured profile's warm pool (`default` unless set): bound and started in seconds
 const sandbox = await mogenius.create({ labels: { project: 'demo' }, autoDeleteInterval: 60 });
 
 // with your own image: a pod start from the profile's template

@@ -65,7 +65,7 @@ func newFakePlatform(t *testing.T, answers ...any) *fakePlatform {
 	t.Helper()
 	// a developer's shell must not leak into the tests
 	for _, name := range []string{"MOGENIUS_API_KEY", "MOGENIUS_API_URL", "MOGENIUS_ORGANIZATION_ID", "MOGENIUS_CLUSTER_ID",
-		"MOGENIUS_SANDBOX_NAMESPACE", "MOGENIUS_WORKSPACE_NAME", "MOGENIUS_STREAM_URL"} {
+		"MOGENIUS_SANDBOX_NAMESPACE", "MOGENIUS_SANDBOX_PROFILE", "MOGENIUS_WORKSPACE_NAME", "MOGENIUS_STREAM_URL"} {
 		t.Setenv(name, "")
 	}
 	f := &fakePlatform{t: t, answers: answers}

@@ -4,6 +4,7 @@ import type { MogeniusConfig, ResolvedConfig } from './types.js';
 export const DEFAULT_API_URL = 'https://platform-api.mogenius.com';
 export const DEFAULT_STREAM_URL = 'wss://k8s-cmd-stream.mogenius.com';
 export const DEFAULT_NAMESPACE = 'agent-sandbox';
+export const DEFAULT_PROFILE = 'default';
 
 const env = (name: string): string | undefined => {
   const value = typeof process !== 'undefined' ? process.env?.[name] : undefined;
@@ -34,6 +35,7 @@ export function resolveConfig(config: MogeniusConfig = {}): ResolvedConfig {
     organizationId: config.organizationId ?? env('MOGENIUS_ORGANIZATION_ID'),
     clusterId: config.clusterId ?? env('MOGENIUS_CLUSTER_ID'),
     namespace: config.namespace ?? config.target ?? env('MOGENIUS_SANDBOX_NAMESPACE') ?? DEFAULT_NAMESPACE,
+    profile: config.profile ?? env('MOGENIUS_SANDBOX_PROFILE') ?? DEFAULT_PROFILE,
     workspaceName: config.workspaceName ?? env('MOGENIUS_WORKSPACE_NAME'),
     fetch: fetchImpl,
     // only needed for streams, so its absence (Node 20) is reported there
