@@ -17,6 +17,14 @@ console.log(result.exitCode, result.result);
 await mogenius.delete(sandbox);
 ```
 
+## Documentation
+
+📖 **[Full documentation](docs/README.md)** — every function of both SDKs, with examples:
+[Getting started](docs/getting-started.md) · [Concepts](docs/concepts.md) · [Sandboxes](docs/sandboxes.md) ·
+[Commands and code](docs/commands.md) · [Sessions](docs/sessions.md) · [Files](docs/files.md) ·
+[Tunnels](docs/tunnels.md) · [Errors](docs/errors.md) · [Recipes](docs/recipes.md) ·
+[API reference](docs/api-reference.md)
+
 ## Packages
 
 | Package                                      | Language   | Status                                                   |
