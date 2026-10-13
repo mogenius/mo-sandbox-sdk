@@ -120,3 +120,7 @@ Go option: `options.WithLocalPort(port)`.
 ## Errors
 
 See [Errors](errors.md).
+
+---
+
+<p align="center"><a href="recipes.md">← Recipes</a> &nbsp;·&nbsp; <a href="README.md">Overview</a></p>

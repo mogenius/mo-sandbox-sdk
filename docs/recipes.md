@@ -141,8 +141,11 @@ console.log(diff.result);
 await mogenius.delete(sandbox);
 ```
 
-Your program does not have to stay connected: store `sandbox.id` and `cmdId`, and pick it up later with
-`mogenius.get(id)` and `getSessionCommand` / `getSessionCommandLogs`. The Go example
+> [!TIP]
+> Your program does not have to stay connected: store `sandbox.id` and `cmdId`, and pick it up later with
+> `mogenius.get(id)` and `getSessionCommand` / `getSessionCommandLogs`.
+
+The Go example
 [`examples/chat`](../packages/go/examples/chat) runs a multi-turn conversation with one `claude` process.
 
 ## Preview a web app
@@ -203,7 +206,8 @@ const results = await Promise.all(
 console.table(results);
 ```
 
-Go, with an errgroup:
+<details>
+<summary><b>Go</b> (with an errgroup)</summary>
 
 ```go
 g, ctx := errgroup.WithContext(ctx)
@@ -225,6 +229,8 @@ for _, version := range []string{"3.11", "3.12", "3.13"} {
 }
 return g.Wait()
 ```
+
+</details>
 
 ## Pause work and continue later
 
@@ -296,3 +302,7 @@ try {
   await mogenius.delete(sandbox);
 }
 ```
+
+---
+
+<p align="center"><a href="errors.md">← Errors</a> &nbsp;·&nbsp; <a href="README.md">Overview</a> &nbsp;·&nbsp; <a href="api-reference.md">API reference →</a></p>

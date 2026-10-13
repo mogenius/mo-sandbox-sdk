@@ -8,12 +8,13 @@
 | `codeRun`                | exit code + output + charts      | a snippet of Python, TypeScript or JavaScript   |
 | `executeCommandStream`   | output **while** it runs         | builds, tests, anything long or chatty          |
 
-All three are **stateless**: `cd` and `export` do not carry over to the next call. For a shell that keeps its
-state, use a [session](sessions.md). A non-zero exit code is a result, not an error.
+> [!IMPORTANT]
+> All three are **stateless**: `cd` and `export` do not carry over to the next call. For a shell that keeps its
+> state, use a [session](sessions.md).
+
+A non-zero exit code is a result, not an error.
 
 ## executeCommand
-
-### TypeScript
 
 ```ts
 // executeCommand(command, cwd?, env?, timeout = 10, container?)
@@ -32,7 +33,8 @@ if (test.exitCode !== 0) {
 await sandbox.process.executeCommand('redis-cli ping', undefined, undefined, 10, 'redis');
 ```
 
-### Go
+<details>
+<summary><b>Go</b></summary>
 
 ```go
 result, err := sandbox.Process.ExecuteCommand(ctx, "ls -la")
@@ -50,12 +52,16 @@ if err == nil && test.ExitCode != 0 {
 _, err = sandbox.Process.ExecuteCommand(ctx, "redis-cli ping", options.WithContainer("redis"))
 ```
 
+</details>
+
 ### Timeouts
 
-The default timeout is **10 seconds**. The cluster caps the maximum (300 seconds by default). A command that
-runs past its timeout is stopped and the call throws `MogeniusProcessExecutionTimeoutError`. For anything that
-runs longer, use `executeCommandStream` with a larger timeout or a background [session command](sessions.md),
-which has no time limit.
+> [!WARNING]
+> The default timeout is **10 seconds**. The cluster caps the maximum (300 seconds by default). A command that
+> runs past its timeout is stopped and the call throws `MogeniusProcessExecutionTimeoutError`.
+
+For anything that runs longer, use `executeCommandStream` with a larger timeout or a background
+[session command](sessions.md), which has no time limit.
 
 ```ts
 import { MogeniusProcessExecutionTimeoutError } from '@mogenius/sandbox';
@@ -72,8 +78,6 @@ try {
 Runs a snippet with the sandbox's default language (`python` unless set at create) or the one you pass:
 Python through `python3`, TypeScript through `tsx`, JavaScript through `node`. The code travels base64-encoded —
 quotes and newlines need no escaping.
-
-### TypeScript
 
 ```ts
 // codeRun(code, params?, timeout = 10)
@@ -101,7 +105,8 @@ await sandbox.process.codeRun(longScript, undefined, 120);
 | `env`       | Environment for this run                                         |
 | `container` | Container to run in; the sandbox's own when absent               |
 
-### Go
+<details>
+<summary><b>Go</b></summary>
 
 ```go
 py, err := sandbox.Process.CodeRun(ctx, `print("hello")`)
@@ -116,6 +121,8 @@ js, err := sandbox.Process.CodeRun(ctx, `console.log(process.argv.slice(2))`,
 	options.WithCodeRunContainer("worker"),
 )
 ```
+
+</details>
 
 ### Charts from matplotlib
 
@@ -141,6 +148,9 @@ for (const [i, chart] of (run.artifacts?.charts ?? []).entries()) {
 }
 ```
 
+<details>
+<summary><b>Go</b></summary>
+
 ```go
 for i, chart := range run.Artifacts.Charts {
 	if chart.Png != nil {
@@ -150,15 +160,18 @@ for i, chart := range run.Artifacts.Charts {
 }
 ```
 
+</details>
+
 ## executeCommandStream
 
 *mogenius addition.* Same parameters as `executeCommand`, but output arrives while the command runs. Events are
-`stdout` / `stderr` with bytes, and finally one `exit` event. **Leaving the loop early stops the command** in the
-container.
+`stdout` / `stderr` with bytes, and finally one `exit` event.
 
-Needs `organizationId` and `clusterId` in the config (see [Getting started](getting-started.md#configure)).
+> [!TIP]
+> **Leaving the loop early stops the command** in the container — `break` as soon as you have what you need.
 
-### TypeScript
+> [!NOTE]
+> Needs `organizationId` and `clusterId` in the config (see [Getting started](getting-started.md#configure)).
 
 ```ts
 const decoder = new TextDecoder();
@@ -182,7 +195,8 @@ for await (const event of sandbox.process.executeCommandStream('npm run build --
 }
 ```
 
-### Go
+<details>
+<summary><b>Go</b></summary>
 
 ```go
 for event, err := range sandbox.Process.ExecuteCommandStream(ctx, "npm test",
@@ -201,6 +215,8 @@ for event, err := range sandbox.Process.ExecuteCommandStream(ctx, "npm test",
 }
 ```
 
+</details>
+
 ## Which one?
 
 ```mermaid
@@ -215,3 +231,7 @@ flowchart TD
   F -- yes --> G[codeRun]
   F -- no --> H[executeCommand]
 ```
+
+---
+
+<p align="center"><a href="sandboxes.md">← Sandboxes</a> &nbsp;·&nbsp; <a href="README.md">Overview</a> &nbsp;·&nbsp; <a href="sessions.md">Sessions →</a></p>

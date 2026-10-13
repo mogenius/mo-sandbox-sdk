@@ -11,8 +11,6 @@
 
 ## Install
 
-### TypeScript
-
 The package is published to GitHub Packages. Point the `@mogenius` scope there in your `.npmrc`, with a GitHub
 token that has `read:packages`:
 
@@ -25,7 +23,8 @@ token that has `read:packages`:
 npm install @mogenius/sandbox
 ```
 
-### Go
+<details>
+<summary><b>Go</b></summary>
 
 ```bash
 go get github.com/mogenius/mo-sandbox-sdk/packages/go@latest
@@ -33,6 +32,8 @@ go get github.com/mogenius/mo-sandbox-sdk/packages/go@latest
 
 Releases are tagged `packages/go/vX.Y.Z`. If `GOPRIVATE` covers `github.com/mogenius`, Go fetches with git
 directly and needs access to GitHub.
+
+</details>
 
 ## Configure
 
@@ -51,6 +52,7 @@ to the environment.
 | `MOGENIUS_STREAM_URL`        | `streamUrl`       | `StreamURL`      | `wss://k8s-cmd-stream.mogenius.com`  |
 | —                            | `fetch`, `webSocket` | `HTTPClient`  | the global ones / `http.DefaultClient` |
 
+> [!IMPORTANT]
 > **Streams and tunnels need both ids.** `executeCommandStream`, live session logs and `tunnel` go through the
 > stream gateway, which does not read organization and cluster from the key. Set `MOGENIUS_ORGANIZATION_ID` and
 > `MOGENIUS_CLUSTER_ID` whenever you use them.
@@ -69,9 +71,11 @@ Load it into the shell before running a program:
 set -a; . ./.env; set +a
 ```
 
-## Your first sandbox
+> [!WARNING]
+> `node --env-file=.env` does not override a `MOGENIUS_*` variable your shell already exports. If a run uses the
+> wrong key or cluster, check `env | grep MOGENIUS`.
 
-### TypeScript
+## Your first sandbox
 
 ```ts
 import { Mogenius } from '@mogenius/sandbox';
@@ -94,7 +98,8 @@ try {
 }
 ```
 
-### Go
+<details>
+<summary><b>Go</b></summary>
 
 ```go
 package main
@@ -148,8 +153,14 @@ client, err := mogenius.NewClientWithConfig(&types.MogeniusConfig{
 })
 ```
 
+</details>
+
 ## Next
 
 - [Concepts](concepts.md) — what a profile and a warm pool are
 - [Sandboxes](sandboxes.md) — the full lifecycle
 - [Recipes](recipes.md) — complete programs to copy from
+
+---
+
+<p align="center"><a href="README.md">← Overview</a> &nbsp;·&nbsp; <a href="README.md">Overview</a> &nbsp;·&nbsp; <a href="concepts.md">Concepts →</a></p>

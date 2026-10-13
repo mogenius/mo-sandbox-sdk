@@ -1,4 +1,27 @@
-# mo-sandbox-sdk
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+    <img alt="mogenius" src="docs/assets/logo-light.svg" width="280">
+  </picture>
+</p>
+
+<h1 align="center">mo-sandbox-sdk</h1>
+
+<p align="center">
+  <a href="packages/typescript"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-%40mogenius%2Fsandbox-3178C6?logo=typescript&logoColor=white"></a>
+  <a href="packages/go"><img alt="Go" src="https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white"></a>
+  <img alt="Node" src="https://img.shields.io/badge/Node-22%2B-5FA04E?logo=nodedotjs&logoColor=white">
+  <img alt="Kubernetes" src="https://img.shields.io/badge/runs%20on-Kubernetes-326CE5?logo=kubernetes&logoColor=white">
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
+</p>
+
+<p align="center">
+  <a href="docs/README.md"><b>📖 Documentation</b></a> ·
+  <a href="docs/getting-started.md"><b>Getting started</b></a> ·
+  <a href="docs/recipes.md"><b>Recipes</b></a> ·
+  <a href="docs/api-reference.md"><b>API reference</b></a>
+</p>
+
 
 SDKs and API clients for **mogenius sandboxes**: isolated, short-lived environments for AI agents and code
 execution, running as pods in your own Kubernetes cluster on top of

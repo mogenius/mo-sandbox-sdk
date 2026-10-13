@@ -6,8 +6,6 @@ Create, find, change and remove sandboxes. See [Concepts](concepts.md) for profi
 
 `create()` creates a sandbox and, by default, waits until it is `started`.
 
-### TypeScript
-
 ```ts
 import { Mogenius } from '@mogenius/sandbox';
 
@@ -47,7 +45,8 @@ await later.waitUntilStarted(90);
 | `ephemeral`          | `boolean`                  | Delete pod **and** storage with the sandbox (default `true`)             |
 | `language`           | `'python' \| 'typescript' \| 'javascript'` | Default language of `codeRun` (default `python`)         |
 
-### Go
+<details>
+<summary><b>Go</b></summary>
 
 ```go
 // from the configured profile's warm pool
@@ -80,9 +79,9 @@ err = sandbox.WaitForStart(ctx, 90*time.Second)
 Options: `options.WithTimeout`, `options.WithWaitForStart`, `options.WithLogChannel` (accepted for
 compatibility; mogenius builds no images at create time, the channel is closed when `Create` returns).
 
-## Get, find and list
+</details>
 
-### TypeScript
+## Get, find and list
 
 ```ts
 // by id — e.g. stored from an earlier run
@@ -105,7 +104,8 @@ while (page.nextCursor) {
 const stopped = await mogenius.list(undefined, {}, 'stopped');
 ```
 
-### Go
+<details>
+<summary><b>Go</b></summary>
 
 ```go
 sandbox, err := client.Get(ctx, "report-42")
@@ -131,6 +131,8 @@ for sandbox, err := range client.ListSeq(ctx, nil) {
 }
 ```
 
+</details>
+
 ## Fields
 
 | TypeScript         | Go               | Meaning                                                           |
@@ -155,11 +157,10 @@ for sandbox, err := range client.ListSeq(ctx, nil) {
 | `data.ephemeral`   | `Ephemeral`      | Pod and storage go with the sandbox                               |
 | `data`             | —                | Everything the platform returned, as `SandboxInfo`                 |
 
-Fields reflect the last call. Reload them with `refreshData()` / `RefreshData(ctx)`.
+> [!NOTE]
+> Fields reflect the last call. Reload them with `refreshData()` / `RefreshData(ctx)`.
 
 ## Start, stop, delete
-
-### TypeScript
 
 ```ts
 await sandbox.stop(); // the pod goes, the volume stays; waits up to 60 s
@@ -176,7 +177,8 @@ await mogenius.stop(sandbox);
 await mogenius.start(sandbox);
 ```
 
-### Go
+<details>
+<summary><b>Go</b></summary>
 
 ```go
 err := sandbox.Stop(ctx)                                      // waits up to 60 s
@@ -189,6 +191,8 @@ err = sandbox.Delete(ctx)
 err = sandbox.DeleteWithTimeout(ctx, 30*time.Second)
 ```
 
+</details>
+
 ## Labels and lifetime
 
 ```ts
@@ -198,12 +202,17 @@ await sandbox.setTtl(30); // alias
 await sandbox.setAutoDeleteInterval(0); // no deadline
 ```
 
+<details>
+<summary><b>Go</b></summary>
+
 ```go
 err := sandbox.SetLabels(ctx, map[string]string{"project": "reports", "stage": "done"})
 minutes := 30
 err = sandbox.SetAutoDeleteInterval(ctx, &minutes)
 err = sandbox.SetAutoDeleteInterval(ctx, nil) // no deadline
 ```
+
+</details>
 
 ## Directories
 
@@ -214,14 +223,20 @@ const home = await sandbox.getUserRootDir(); // e.g. /home/coder
 const work = await sandbox.getWorkDir(); // e.g. /home/coder/project
 ```
 
+<details>
+<summary><b>Go</b></summary>
+
 ```go
 home, err := sandbox.GetUserHomeDir(ctx)
 work, err := sandbox.GetWorkingDir(ctx)
 ```
 
+</details>
+
 ## Cleaning up
 
-Always delete what you create — or give it a lifetime, so a crashed program leaves nothing behind:
+> [!TIP]
+> Always delete what you create — or give it a lifetime, so a crashed program leaves nothing behind.
 
 ```ts
 const sandbox = await mogenius.create({ autoDeleteInterval: 30 });
@@ -231,6 +246,9 @@ try {
   await mogenius.delete(sandbox);
 }
 ```
+
+<details>
+<summary><b>Go</b></summary>
 
 ```go
 thirty := 30
@@ -242,3 +260,9 @@ if err != nil {
 }
 defer sandbox.Delete(context.Background())
 ```
+
+</details>
+
+---
+
+<p align="center"><a href="concepts.md">← Concepts</a> &nbsp;·&nbsp; <a href="README.md">Overview</a> &nbsp;·&nbsp; <a href="commands.md">Commands and code →</a></p>

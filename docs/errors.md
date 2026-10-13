@@ -8,7 +8,8 @@ Every error the SDK throws (TS) or returns (Go) belongs to one hierarchy. Each c
 | error code   | `errorCode`  | `ErrorCode`  | the platform's code, e.g. `SANDBOX_NOT_FOUND`              |
 | source       | `source`     | `Source`     | who decided: `api`, `operator` (in your cluster) or `sdk`  |
 
-A non-zero exit code of a command is **not** an error — check `exitCode`.
+> [!IMPORTANT]
+> A non-zero exit code of a command is **not** an error — check `exitCode`.
 
 ## Kinds
 
@@ -42,8 +43,6 @@ A non-zero exit code of a command is **not** an error — check `exitCode`.
 
 ## Handling errors
 
-### TypeScript
-
 ```ts
 import {
   MogeniusError,
@@ -70,7 +69,8 @@ try {
 }
 ```
 
-### Go
+<details>
+<summary><b>Go</b></summary>
 
 The package `pkg/errors` shadows the standard `errors`; import it as `sdkerrors`. Every kind unwraps to
 `*MogeniusError`. A cancelled context comes back as itself (`context.Canceled`).
@@ -99,6 +99,8 @@ case err != nil:
 }
 ```
 
+</details>
+
 ## Retry on a transient conflict
 
 ```ts
@@ -116,3 +118,7 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 5): Promise<T> {
 
 await withRetry(() => sandbox.process.executeCommand('echo ready'));
 ```
+
+---
+
+<p align="center"><a href="tunnels.md">← Tunnels</a> &nbsp;·&nbsp; <a href="README.md">Overview</a> &nbsp;·&nbsp; <a href="recipes.md">Recipes →</a></p>

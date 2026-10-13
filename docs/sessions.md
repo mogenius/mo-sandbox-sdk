@@ -21,7 +21,10 @@ longer than the cluster's limit for a plain command, or when it reads from stdin
 | `sendSessionCommandInput(id, cmdId, data)` | `SendSessionCommandInput(ctx, id, cmdId, data)` | writes to the command's stdin     |
 
 A session ends with `deleteSession`, after 30 minutes without a running command (operator setting), when the
-sandbox stops, or when a command runs `exit`. Sessions are bound to the API key that opened them.
+sandbox stops, or when a command runs `exit`.
+
+> [!NOTE]
+> Sessions are bound to the API key that opened them: another key neither sees nor uses them.
 
 ## State carries over
 
@@ -40,6 +43,9 @@ await sandbox.process.executeSessionCommand('dev', { command: 'python -c "import
 await sandbox.process.deleteSession('dev');
 ```
 
+<details>
+<summary><b>Go</b></summary>
+
 ```go
 err := sandbox.Process.CreateSession(ctx, "dev")
 _, err = sandbox.Process.ExecuteSessionCommand(ctx, "dev", "cd /tmp && export FOO=bar", false, false)
@@ -48,14 +54,19 @@ fmt.Println(result["stdout"], result["exitCode"]) // "bar /tmp\n" 0
 err = sandbox.Process.DeleteSession(ctx, "dev")
 ```
 
+</details>
+
 In Go the result is a `map[string]any` with `id` (the command id), `exitCode` (`int32`, once ended), `stdout`
 and `output` (both: stdout and stderr in arrival order — the shell writes them into one stream).
 
 ## Synchronous and background commands
 
-A synchronous call waits up to `timeout` seconds (default 60). **The command is not stopped when the wait runs
-out** — the answer then has no `exitCode`; fetch the result later. `runAsync: true` returns right away with the
+A synchronous call waits up to `timeout` seconds (default 60). `runAsync: true` returns right away with the
 `cmdId`.
+
+> [!IMPORTANT]
+> **The command is not stopped when the wait runs out** — the answer then has no `exitCode`; fetch the result
+> later with `getSessionCommand`.
 
 ```ts
 // background: a dev server keeps running after the call returns
@@ -73,6 +84,9 @@ const cmd = await sandbox.process.getSessionCommand('dev', slow.cmdId);
 console.log(cmd.command, cmd.exitCode);
 ```
 
+<details>
+<summary><b>Go</b></summary>
+
 ```go
 started, err := sandbox.Process.ExecuteSessionCommand(ctx, "web", "python3 -m http.server 8000", true, false)
 cmdID := started["id"].(string)
@@ -80,6 +94,8 @@ cmdID := started["id"].(string)
 cmd, err := sandbox.Process.GetSessionCommand(ctx, "web", cmdID)
 fmt.Println(cmd["command"], cmd["exitCode"]) // exitCode absent while running
 ```
+
+</details>
 
 ## Logs
 
@@ -91,6 +107,9 @@ const text = await sandbox.process.getSessionCommandLogs('dev', cmdId);
 await sandbox.process.getSessionCommandLogs('dev', cmdId, (chunk) => process.stdout.write(chunk));
 const { exitCode } = await sandbox.process.getSessionCommand('dev', cmdId);
 ```
+
+<details>
+<summary><b>Go</b></summary>
 
 ```go
 logs, err := sandbox.Process.GetSessionCommandLogs(ctx, "dev", cmdID)
@@ -111,6 +130,8 @@ go func() {
 err = sandbox.Process.GetSessionCommandLogsStream(ctx, "dev", cmdID, stdout, stderr)
 ```
 
+</details>
+
 Following live goes through the stream gateway and needs `organizationId` and `clusterId` in the config.
 
 ## Input
@@ -127,15 +148,22 @@ await sandbox.process.sendSessionCommandInput('dev', ask.cmdId, 'jane\n');
 await sandbox.process.getSessionCommandLogs('dev', ask.cmdId, (c) => process.stdout.write(c)); // hello jane
 ```
 
+<details>
+<summary><b>Go</b></summary>
+
 ```go
 err = sandbox.Process.SendSessionCommandInput(ctx, "dev", cmdID, "jane\n")
 ```
 
+</details>
+
 ## Environment and secrets
 
-*mogenius addition.* `env` at creation is exported into the session's shell, so every command sees it. A
-command's text is listed with the session (`getSession`), its environment is not — **put API keys here, not into
-the command line**.
+*mogenius addition.* `env` at creation is exported into the session's shell, so every command sees it.
+
+> [!CAUTION]
+> A command's text is listed with the session (`getSession`), its environment is not — **put API keys into
+> `env`, never into the command line**.
 
 ```ts
 await sandbox.process.createSession('agent', {
@@ -147,12 +175,17 @@ await sandbox.process.createSession('sidecar', { container: 'worker' });
 await sandbox.process.createSession('sidecar2', 'worker'); // short form: just the container
 ```
 
+<details>
+<summary><b>Go</b></summary>
+
 ```go
 err := sandbox.Process.CreateSession(ctx, "agent",
 	options.WithSessionEnv(map[string]string{"ANTHROPIC_API_KEY": os.Getenv("ANTHROPIC_API_KEY")}),
 	options.WithSessionContainer("worker"),
 )
 ```
+
+</details>
 
 ## Long-running agents
 
@@ -179,3 +212,7 @@ this way: one process, messages over stdin, each turn as long as it takes.
 | `MogeniusConflictError`    | session id taken (`SESSION_ALREADY_EXISTS`), a command still running (`SESSION_BUSY`) |
 | `MogeniusNotFoundError`    | no such session (`SESSION_NOT_FOUND`) or command (`SESSION_COMMAND_NOT_FOUND`) |
 | `MogeniusOperatorUpgradeRequiredError` | the cluster's operator is too old for sessions     |
+
+---
+
+<p align="center"><a href="commands.md">← Commands and code</a> &nbsp;·&nbsp; <a href="README.md">Overview</a> &nbsp;·&nbsp; <a href="files.md">Files →</a></p>

@@ -79,6 +79,10 @@ stateDiagram-v2
 - `ephemeral` (default `true`): pod **and** storage go when the sandbox is deleted or its lifetime ends.
 - `stop()` keeps the volume; `start()` comes back with the same files.
 
+> [!TIP]
+> Give every sandbox an `autoDeleteInterval`. If your program crashes before it deletes the sandbox, the cluster
+> cleans up on its own.
+
 ## Pods and containers
 
 Commands, files and sessions address the sandbox's pod (`podName`) and, by default, its own container
@@ -99,3 +103,7 @@ Sandboxes are Kubernetes pods, not micro-VMs. These calls exist for compatibilit
 | `mogenius.volume`                             | Each sandbox gets its own volume from the profile           |
 
 `autoStopInterval` and `autoArchiveInterval` in the create params are accepted and ignored.
+
+---
+
+<p align="center"><a href="getting-started.md">← Getting started</a> &nbsp;·&nbsp; <a href="README.md">Overview</a> &nbsp;·&nbsp; <a href="sandboxes.md">Sandboxes →</a></p>

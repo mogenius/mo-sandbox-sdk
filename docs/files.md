@@ -41,7 +41,12 @@ const results = await sandbox.fs.uploadFiles([
 for (const r of results) if (!r.success) console.error(r.path, r.error);
 ```
 
-`uploadFile` takes content, not a local path — read the file yourself. Limit: 100 MB per file.
+> [!WARNING]
+> In TypeScript `uploadFile` takes **content, not a local path** — a string is written as text. Read the file
+> yourself first. Limit: 100 MB per file.
+
+<details>
+<summary><b>Go</b></summary>
 
 ```go
 err := sandbox.FileSystem.UploadFile(ctx, []byte("print(\"hello\")\n"), "app.py")
@@ -53,6 +58,8 @@ defer file.Close()
 err = sandbox.FileSystem.UploadFileStream(ctx, file, "/tmp/dataset.parquet",
 	mogenius.WithUploadProgress(func(p mogenius.UploadProgress) { fmt.Println(p.BytesSent) }))
 ```
+
+</details>
 
 ## Download
 
@@ -78,6 +85,9 @@ await pipeline(Readable.fromWeb(stream as any), createWriteStream('./big.bin'));
 with a Range request, up to five times with growing pauses. What you read stays one complete file; if the file
 changed in between, the stream fails instead of mixing versions.
 
+<details>
+<summary><b>Go</b></summary>
+
 ```go
 data, err := sandbox.FileSystem.DownloadFile(ctx, "out/report.csv", nil)
 
@@ -97,6 +107,8 @@ defer out.Close()
 _, err = io.Copy(out, reader)
 ```
 
+</details>
+
 ## List and inspect
 
 ```ts
@@ -110,6 +122,9 @@ const info = await sandbox.fs.getFileDetails('app.py');
 console.log(info.path, info.mode, info.modTime);
 ```
 
+<details>
+<summary><b>Go</b></summary>
+
 ```go
 files, err := sandbox.FileSystem.ListFiles(ctx, "/tmp")
 for _, f := range files {
@@ -117,6 +132,8 @@ for _, f := range files {
 }
 info, err := sandbox.FileSystem.GetFileInfo(ctx, "app.py")
 ```
+
+</details>
 
 `FileInfo`:
 
@@ -145,6 +162,9 @@ await sandbox.fs.deleteFile('out/app.py');
 await sandbox.fs.deleteFile('out', true); // recursive; a non-empty folder without it is a conflict
 ```
 
+<details>
+<summary><b>Go</b></summary>
+
 ```go
 err := sandbox.FileSystem.CreateFolder(ctx, "out/logs", options.WithMode("755"))
 err = sandbox.FileSystem.MoveFiles(ctx, "app.py", "out/app.py")
@@ -152,6 +172,8 @@ err = sandbox.FileSystem.SetFilePermissions(ctx, "out/app.py",
 	options.WithPermissionMode("600"), options.WithOwner("coder"), options.WithGroup("coder"))
 err = sandbox.FileSystem.DeleteFile(ctx, "out", true)
 ```
+
+</details>
 
 ## Search and replace
 
@@ -168,6 +190,9 @@ const results = await sandbox.fs.replaceInFiles(['src/config.ts', 'src/app.ts'],
 for (const r of results) if (!r.success) console.error(r.file, r.error);
 ```
 
+<details>
+<summary><b>Go</b></summary>
+
 ```go
 found, err := sandbox.FileSystem.SearchFiles(ctx, ".", "*.py")
 // found.(map[string]any): "files" []string, "truncated" bool
@@ -180,6 +205,8 @@ for _, m := range matches.([]map[string]any) {
 results, err := sandbox.FileSystem.ReplaceInFiles(ctx, []string{"src/config.ts"}, "localhost", "0.0.0.0")
 ```
 
+</details>
+
 ## Errors you may see
 
 | Error                     | Error code                    | When                                         |
@@ -187,3 +214,7 @@ results, err := sandbox.FileSystem.ReplaceInFiles(ctx, []string{"src/config.ts"}
 | `MogeniusNotFoundError`   | `FILE_NOT_FOUND`              | path does not exist                          |
 | `MogeniusConflictError`   | `FILE_EXISTS`, `FILE_NOT_EMPTY` | target exists; folder not empty without `recursive` |
 | `MogeniusForbiddenError`  | `FILE_PERMISSION_DENIED`      | the container user may not; or a viewer key writes |
+
+---
+
+<p align="center"><a href="sessions.md">← Sessions</a> &nbsp;·&nbsp; <a href="README.md">Overview</a> &nbsp;·&nbsp; <a href="tunnels.md">Tunnels →</a></p>

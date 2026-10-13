@@ -4,8 +4,10 @@
 `kubectl port-forward` — through the platform's stream gateway, so the cluster needs no ingress. HTTP,
 WebSockets, gRPC and plain TCP (a database) all pass. Only bytes travel: the sandbox never sees your credentials.
 
-Needs `organizationId` and `clusterId` in the config. TypeScript: Node only (the local side is a TCP server).
+> [!NOTE]
+> Needs `organizationId` and `clusterId` in the config. TypeScript: Node only (the local side is a TCP server).
 
+> [!TIP]
 > Inside the cluster you do not need a tunnel: reach the sandbox at `sandbox.serviceFQDN`.
 
 ## Open a tunnel
@@ -39,7 +41,8 @@ tunnel.done.then((error) => {
 });
 ```
 
-## Go
+<details>
+<summary><b>Go</b></summary>
 
 ```go
 tunnel, err := sandbox.Tunnel(ctx, 8000) // options.WithLocalPort(3000) fixes the local port
@@ -66,6 +69,8 @@ go func() {
 
 `ctx` bounds only the setup; the tunnel lives until `Close`.
 
+</details>
+
 ## Behaviour
 
 - **Reconnects on its own.** When the gateway connection drops, the tunnel reconnects with growing pauses;
@@ -85,3 +90,7 @@ const tunnel = await sandbox.tunnel(6379, { localPort: 6379 });
 ```
 
 A preview of a web app an agent built — see [Recipes](recipes.md#preview-a-web-app).
+
+---
+
+<p align="center"><a href="files.md">← Files</a> &nbsp;·&nbsp; <a href="README.md">Overview</a> &nbsp;·&nbsp; <a href="errors.md">Errors →</a></p>
