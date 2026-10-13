@@ -2,6 +2,7 @@ import type { ApiClient } from './api-client.js';
 import { MogeniusError, MogeniusNotFoundError, MogeniusTimeoutError } from './errors.js';
 import { PYTHON_BOOTSTRAP } from './python-bootstrap.js';
 import type {
+  CreateSessionOptions,
   Chart,
   CodeLanguage,
   CodeRunParams,
@@ -183,15 +184,18 @@ export class Process {
    * sandbox stops.
    *
    * @param sessionId a name of your choice, unique within the sandbox
-   * @param container mogenius: container the shell runs in; the sandbox's own when absent
+   * @param options mogenius: the container the shell runs in (the sandbox's own when absent), as a string or as
+   *   `{ container, env }`; `env` is exported into the session's shell
    */
-  async createSession(sessionId: string, container?: string): Promise<SessionInfo> {
+  async createSession(sessionId: string, options?: string | CreateSessionOptions): Promise<SessionInfo> {
+    const { container, env } = typeof options === 'string' ? { container: options, env: undefined } : (options ?? {});
     const path = await this.sessionPath();
     // the pod route would take the pod's first container; a sandbox means its own
     const target = container || (await this.pod()).containerName;
     const body = await this.api.post<SessionInfoBody>(path, {
       sessionId,
       ...(target ? { container: target } : {}),
+      ...(env && Object.keys(env).length > 0 ? { env } : {}),
     });
     return toSessionInfo(body);
   }

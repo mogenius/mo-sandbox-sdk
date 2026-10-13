@@ -33,6 +33,7 @@ export type {
   ExecutionArtifacts,
   ExecEvent,
   SessionInfo,
+  CreateSessionOptions,
   SessionCommand,
   SessionExecuteRequest,
   SessionExecuteResponse,

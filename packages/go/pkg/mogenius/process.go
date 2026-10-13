@@ -222,7 +222,8 @@ type sessionExecuteBody struct {
 // Commands run in it one at a time. The session lives until DeleteSession,
 // until it has idled for the cluster's timeout (30 minutes by default), or
 // until the sandbox stops. sessionID is a name of your choice, unique within
-// the sandbox; WithSessionContainer picks another container than the sandbox's.
+// the sandbox; WithSessionContainer picks another container than the sandbox's,
+// WithSessionEnv exports variables into the session's shell.
 func (p *ProcessService) CreateSession(ctx context.Context, sessionID string, opts ...func(*options.CreateSession)) error {
 	path, err := p.sessionBase(ctx)
 	if err != nil {
@@ -240,6 +241,9 @@ func (p *ProcessService) CreateSession(ctx context.Context, sessionID string, op
 	body := map[string]any{"sessionId": sessionID}
 	if container != "" {
 		body["container"] = container
+	}
+	if len(sessionOpts.Env) > 0 {
+		body["env"] = sessionOpts.Env
 	}
 	return p.sandbox.api.post(ctx, path, nil, body, nil)
 }

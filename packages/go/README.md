@@ -127,7 +127,20 @@ err = sandbox.Process.DeleteSession(ctx, "build")
 ```
 
 `GetSessionCommandLogsStream` follows a command live into two channels and closes them when it ends;
-`SendSessionCommandInput` (mogenius) writes to the command's stdin.
+`SendSessionCommandInput` (mogenius) writes to the command's stdin. `DeleteSession` stops a running command
+together with its children.
+
+mogenius: `options.WithSessionEnv` exports variables into the session's shell. A command's text is listed with the
+session (`GetSession`), its environment is not — put API keys there. A session command has no time limit of its
+own, unlike `ExecuteCommand`, whose maximum the cluster sets (5 minutes by default): run a long agent as a
+background session command and follow it. `examples/chat` holds a conversation with Claude Code this way, one
+process for all turns, each turn as long as it takes.
+
+```go
+err := sandbox.Process.CreateSession(ctx, "agent", options.WithSessionEnv(map[string]string{"LINEAR_API_KEY": key}))
+started, err := sandbox.Process.ExecuteSessionCommand(ctx, "agent", "my-agent --task …", true, false)
+err = sandbox.Process.GetSessionCommandLogsStream(ctx, "agent", started["id"].(string), stdout, stderr)
+```
 
 ## Tunnels
 

@@ -242,6 +242,20 @@ func TestSessionsRunOnThePodRoutes(t *testing.T) {
 	}
 }
 
+func TestSessionEnvTravelsWithTheCreate(t *testing.T) {
+	f := newFakePlatform(t, reply{status: 201, body: map[string]any{"sessionId": "agent"}})
+	process := f.sandbox(t, nil).Process
+
+	if err := process.CreateSession(context.Background(), "agent", options.WithSessionEnv(map[string]string{"ANTHROPIC_API_KEY": "made-up"})); err != nil {
+		t.Fatal(err)
+	}
+	calls := f.recorded()
+	want := map[string]any{"sessionId": "agent", "container": "sandbox", "env": map[string]any{"ANTHROPIC_API_KEY": "made-up"}}
+	if body := calls[0].json(t); !reflect.DeepEqual(body, want) {
+		t.Errorf("body %v, want %v", body, want)
+	}
+}
+
 func TestSessionsNeedAPod(t *testing.T) {
 	stillCreating := sandboxJSON(map[string]any{"podName": nil, "state": "creating"})
 	f := newFakePlatform(t, reply{body: stillCreating})

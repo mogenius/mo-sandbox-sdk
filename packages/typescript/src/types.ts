@@ -258,6 +258,18 @@ export interface SessionInfo {
   lastUsedAt: string;
 }
 
+/** mogenius: options of `createSession()`. */
+export interface CreateSessionOptions {
+  /** Container the shell runs in; the sandbox's own when absent. */
+  container?: string;
+  /**
+   * Exported into the session's shell, so every command of the session sees it — the place for API keys a
+   * long-running command needs, since a command's own text is listed with the session. Names must be shell
+   * identifiers.
+   */
+  env?: Record<string, string>;
+}
+
 /** A command run in a session. */
 export interface SessionCommand {
   /** The `cmdId` the exec call returned. */

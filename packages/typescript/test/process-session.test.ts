@@ -42,6 +42,15 @@ describe('Process sessions', () => {
     });
   });
 
+  it('exports env into the session with the create', async () => {
+    const { fetch, calls } = fakeFetch({ body: sandboxInfo() }, { status: 201, body: sessionBody() });
+    const sandbox = await new Mogenius({ ...CONFIG, fetch }).get('default-abc12');
+
+    await sandbox.process.createSession('dev', { env: { ANTHROPIC_API_KEY: 'made-up' } });
+
+    expect(calls[1]!.body).toEqual({ sessionId: 'dev', container: 'sandbox', env: { ANTHROPIC_API_KEY: 'made-up' } });
+  });
+
   it('names the container when asked, lists, gets and deletes', async () => {
     const { fetch, calls } = fakeFetch(
       { body: sandboxInfo() },

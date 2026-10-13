@@ -82,10 +82,23 @@ func WithCodeRunContainer(container string) func(*CodeRun) {
 type CreateSession struct {
 	// mogenius: Container the session's shell runs in; the sandbox's own when nil.
 	Container *string
+	// mogenius: Env is exported into the session's shell, so every command of
+	// the session sees it. The values are never listed with the session's
+	// commands.
+	Env map[string]string
 }
 
 func WithSessionContainer(container string) func(*CreateSession) {
 	return func(opts *CreateSession) {
 		opts.Container = &container
+	}
+}
+
+// WithSessionEnv exports env into the session's shell — the place for API
+// keys a long-running command needs, since a command's own text is listed
+// with the session. Names must be shell identifiers.
+func WithSessionEnv(env map[string]string) func(*CreateSession) {
+	return func(opts *CreateSession) {
+		opts.Env = env
 	}
 }

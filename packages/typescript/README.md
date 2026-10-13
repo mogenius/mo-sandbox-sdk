@@ -104,7 +104,19 @@ await sandbox.process.deleteSession('dev');
 
 Sessions live in the cluster's operator and are bound to the key that opened them. They end with
 `deleteSession`, after 30 minutes without a running command (operator setting), when the sandbox stops, or when
-a command runs `exit`. Following logs live goes over the stream gateway like `executeCommandStream`.
+a command runs `exit`. `deleteSession` stops a running command together with its children. Following logs live
+goes over the stream gateway like `executeCommandStream`.
+
+mogenius: `createSession(id, { env })` exports variables into the session's shell. A command's text is listed
+with the session (`getSession`), its environment is not — put API keys there. A session command has no time
+limit of its own, unlike `executeCommand`, whose maximum the cluster sets (5 minutes by default): run a
+long agent as a background session command and follow its logs.
+
+```ts
+await sandbox.process.createSession('agent', { env: { LINEAR_API_KEY: process.env.LINEAR_API_KEY! } });
+const { cmdId } = await sandbox.process.executeSessionCommand('agent', { command: 'my-agent --task …', runAsync: true });
+await sandbox.process.getSessionCommandLogs('agent', cmdId, (chunk) => process.stdout.write(chunk));
+```
 
 ## Files
 
