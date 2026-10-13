@@ -14,6 +14,9 @@ WebSockets, gRPC and plain TCP (a database) all pass. Only bytes travel: the san
 
 Start the server inside the sandbox in a [session](sessions.md), so it keeps running after the call returns:
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 await sandbox.process.createSession('web');
 await sandbox.process.executeSessionCommand('web', {
@@ -32,14 +35,21 @@ try {
 }
 ```
 
+</details>
+
 `Tunnel` has `host` (`127.0.0.1`), `port`, `url`, `close()` and `done` — a promise that settles when the tunnel
 ends: with the error that ended it, or `undefined` after `close()`.
+
+<details open>
+<summary><b>TypeScript</b></summary>
 
 ```ts
 tunnel.done.then((error) => {
   if (error) console.error('tunnel ended:', error.message);
 });
 ```
+
+</details>
 
 <details>
 <summary><b>Go</b></summary>
@@ -82,12 +92,17 @@ go func() {
 
 A database in the sandbox, reached from a local client:
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 await sandbox.process.createSession('db');
 await sandbox.process.executeSessionCommand('db', { command: 'redis-server --port 6379', runAsync: true });
 const tunnel = await sandbox.tunnel(6379, { localPort: 6379 });
 // redis-cli -p 6379 ping  →  PONG
 ```
+
+</details>
 
 A preview of a web app an agent built — see [Recipes](recipes.md#preview-a-web-app).
 

@@ -6,6 +6,9 @@ Create, find, change and remove sandboxes. See [Concepts](concepts.md) for profi
 
 `create()` creates a sandbox and, by default, waits until it is `started`.
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 import { Mogenius } from '@mogenius/sandbox';
 
@@ -33,6 +36,8 @@ const custom = await mogenius.create(
 const later = await mogenius.create({}, { timeout: 0 });
 await later.waitUntilStarted(90);
 ```
+
+</details>
 
 | Param                | Type                       | Meaning                                                                  |
 | -------------------- | -------------------------- | ------------------------------------------------------------------------ |
@@ -83,6 +88,9 @@ compatibility; mogenius builds no images at create time, the channel is closed w
 
 ## Get, find and list
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 // by id — e.g. stored from an earlier run
 const sandbox = await mogenius.get('report-42');
@@ -103,6 +111,8 @@ while (page.nextCursor) {
 // filter by state: third argument
 const stopped = await mogenius.list(undefined, {}, 'stopped');
 ```
+
+</details>
 
 <details>
 <summary><b>Go</b></summary>
@@ -162,6 +172,9 @@ for sandbox, err := range client.ListSeq(ctx, nil) {
 
 ## Start, stop, delete
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 await sandbox.stop(); // the pod goes, the volume stays; waits up to 60 s
 await sandbox.start(); // back with the same files; waits up to 60 s
@@ -176,6 +189,8 @@ await sandbox.delete(); // or: await mogenius.delete(sandbox)
 await mogenius.stop(sandbox);
 await mogenius.start(sandbox);
 ```
+
+</details>
 
 <details>
 <summary><b>Go</b></summary>
@@ -195,12 +210,17 @@ err = sandbox.DeleteWithTimeout(ctx, 30*time.Second)
 
 ## Labels and lifetime
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 await sandbox.setLabels({ project: 'reports', stage: 'done' }); // replaces your labels; platform labels stay
 await sandbox.setAutoDeleteInterval(30); // 30 minutes from now
 await sandbox.setTtl(30); // alias
 await sandbox.setAutoDeleteInterval(0); // no deadline
 ```
+
+</details>
 
 <details>
 <summary><b>Go</b></summary>
@@ -218,10 +238,15 @@ err = sandbox.SetAutoDeleteInterval(ctx, nil) // no deadline
 
 Asked from the running sandbox:
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 const home = await sandbox.getUserRootDir(); // e.g. /home/coder
 const work = await sandbox.getWorkDir(); // e.g. /home/coder/project
 ```
+
+</details>
 
 <details>
 <summary><b>Go</b></summary>
@@ -238,6 +263,9 @@ work, err := sandbox.GetWorkingDir(ctx)
 > [!TIP]
 > Always delete what you create — or give it a lifetime, so a crashed program leaves nothing behind.
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 const sandbox = await mogenius.create({ autoDeleteInterval: 30 });
 try {
@@ -246,6 +274,8 @@ try {
   await mogenius.delete(sandbox);
 }
 ```
+
+</details>
 
 <details>
 <summary><b>Go</b></summary>

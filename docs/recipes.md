@@ -16,6 +16,9 @@ ones with `npx tsx recipe.ts` after loading your `.env` (see [Getting started](g
 
 Code the model wrote runs in the sandbox, never on your machine. A lifetime makes sure nothing stays behind.
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 import { Mogenius, MogeniusProcessExecutionTimeoutError } from '@mogenius/sandbox';
 
@@ -37,9 +40,14 @@ export async function runGenerated(code: string): Promise<string> {
 console.log(await runGenerated('print([n * n for n in range(5)])')); // [0, 1, 4, 9, 16]
 ```
 
+</details>
+
 ## Analyse data and get the charts
 
 Upload a CSV, let pandas and matplotlib work on it, save the charts locally.
+
+<details open>
+<summary><b>TypeScript</b></summary>
 
 ```ts
 import { readFile, writeFile } from 'node:fs/promises';
@@ -79,9 +87,14 @@ df.groupby("region")["revenue"].sum().plot(kind="pie", title="By region")
 }
 ```
 
+</details>
+
 ## Clone a repo and run its tests
 
 A session keeps the working directory; the stream shows the test output live.
+
+<details open>
+<summary><b>TypeScript</b></summary>
 
 ```ts
 import { Mogenius } from '@mogenius/sandbox';
@@ -109,10 +122,15 @@ try {
 }
 ```
 
+</details>
+
 ## Run a coding agent in the background
 
 An agent runs longer than a plain command may. As a background session command it has no time limit; its API
 key travels in the session's env, not in the command text.
+
+<details open>
+<summary><b>TypeScript</b></summary>
 
 ```ts
 import { Mogenius } from '@mogenius/sandbox';
@@ -141,6 +159,8 @@ console.log(diff.result);
 await mogenius.delete(sandbox);
 ```
 
+</details>
+
 > [!TIP]
 > Your program does not have to stay connected: store `sandbox.id` and `cmdId`, and pick it up later with
 > `mogenius.get(id)` and `getSessionCommand` / `getSessionCommandLogs`.
@@ -151,6 +171,9 @@ The Go example
 ## Preview a web app
 
 Start a dev server inside the sandbox and open it locally through a tunnel.
+
+<details open>
+<summary><b>TypeScript</b></summary>
 
 ```ts
 import { Mogenius } from '@mogenius/sandbox';
@@ -177,11 +200,16 @@ process.on('SIGINT', async () => {
 });
 ```
 
+</details>
+
 The same in Go: [`packages/go/examples/tunnel`](../packages/go/examples/tunnel).
 
 ## Many sandboxes in parallel
 
 Warm-pool sandboxes start in seconds; run a matrix side by side.
+
+<details open>
+<summary><b>TypeScript</b></summary>
 
 ```ts
 import { Mogenius } from '@mogenius/sandbox';
@@ -205,6 +233,8 @@ const results = await Promise.all(
 );
 console.table(results);
 ```
+
+</details>
 
 <details>
 <summary><b>Go</b> (with an errgroup)</summary>
@@ -236,6 +266,9 @@ return g.Wait()
 
 `stop()` frees the pod but keeps the volume. Find the sandbox again by label, start it, and the files are there.
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 import { Mogenius } from '@mogenius/sandbox';
 
@@ -252,10 +285,15 @@ if (again.state === 'stopped') await again.start();
 console.log((await again.fs.downloadFile('notes.md')).toString()); // draft v1
 ```
 
+</details>
+
 ## An LLM tool for code execution
 
 Expose the sandbox as a tool to a model. This uses the Anthropic SDK; any framework with tool calls works the
 same way.
+
+<details open>
+<summary><b>TypeScript</b></summary>
 
 ```ts
 import Anthropic from '@anthropic-ai/sdk';
@@ -302,6 +340,8 @@ try {
   await mogenius.delete(sandbox);
 }
 ```
+
+</details>
 
 ---
 

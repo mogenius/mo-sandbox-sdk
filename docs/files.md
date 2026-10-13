@@ -26,6 +26,9 @@ each operation inside the container — nothing is installed in the image for it
 
 ## Upload
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 import { readFile } from 'node:fs/promises';
 
@@ -40,6 +43,8 @@ const results = await sandbox.fs.uploadFiles([
 ]);
 for (const r of results) if (!r.success) console.error(r.path, r.error);
 ```
+
+</details>
 
 > [!WARNING]
 > In TypeScript `uploadFile` takes **content, not a local path** — a string is written as text. Read the file
@@ -63,6 +68,9 @@ err = sandbox.FileSystem.UploadFileStream(ctx, file, "/tmp/dataset.parquet",
 
 ## Download
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 import { createWriteStream } from 'node:fs';
 import { Readable } from 'node:stream';
@@ -80,6 +88,8 @@ for (const f of many) console.log(f.path, f.error ?? `${f.data!.length} bytes`);
 const stream = await sandbox.fs.downloadFileStream('big.bin');
 await pipeline(Readable.fromWeb(stream as any), createWriteStream('./big.bin'));
 ```
+
+</details>
 
 `downloadFileStream` (*mogenius addition*) resumes on its own: when the connection breaks, it asks for the rest
 with a Range request, up to five times with growing pauses. What you read stays one complete file; if the file
@@ -111,6 +121,9 @@ _, err = io.Copy(out, reader)
 
 ## List and inspect
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 const entries = await sandbox.fs.listFiles(); // working directory
 const tmp = await sandbox.fs.listFiles('/tmp');
@@ -121,6 +134,8 @@ for (const e of tmp) {
 const info = await sandbox.fs.getFileDetails('app.py');
 console.log(info.path, info.mode, info.modTime);
 ```
+
+</details>
 
 <details>
 <summary><b>Go</b></summary>
@@ -151,6 +166,9 @@ info, err := sandbox.FileSystem.GetFileInfo(ctx, "app.py")
 
 ## Create, move, delete, permissions
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 await sandbox.fs.createFolder('out/logs', '755'); // parents too; mode octal or symbolic
 await sandbox.fs.moveFiles('app.py', 'out/app.py'); // the destination's folder must exist
@@ -161,6 +179,8 @@ await sandbox.fs.setFilePermissions('run.sh', { mode: 'u+x' });
 await sandbox.fs.deleteFile('out/app.py');
 await sandbox.fs.deleteFile('out', true); // recursive; a non-empty folder without it is a conflict
 ```
+
+</details>
 
 <details>
 <summary><b>Go</b></summary>
@@ -177,6 +197,9 @@ err = sandbox.FileSystem.DeleteFile(ctx, "out", true)
 
 ## Search and replace
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 // names by shell glob
 const { files, truncated } = await sandbox.fs.searchFiles('.', '*.py');
@@ -189,6 +212,8 @@ for (const m of matches) console.log(`${m.file}:${m.line}: ${m.content}`);
 const results = await sandbox.fs.replaceInFiles(['src/config.ts', 'src/app.ts'], 'localhost', '0.0.0.0');
 for (const r of results) if (!r.success) console.error(r.file, r.error);
 ```
+
+</details>
 
 <details>
 <summary><b>Go</b></summary>

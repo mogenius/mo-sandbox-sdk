@@ -33,11 +33,16 @@ Profiles are configured on the cluster's **Sandboxes** page in the mogenius plat
 in this order: `snapshot` in the create params → the configured `profile` (`MOGENIUS_SANDBOX_PROFILE`) →
 `default`.
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 await mogenius.create(); // warm pool of the configured profile
 await mogenius.create({ snapshot: 'python-data' }); // warm pool of "python-data"
 await mogenius.create({ image: 'node:22', snapshot: 'python-data' }); // own image in that profile's template
 ```
+
+</details>
 
 ## The sandbox id
 

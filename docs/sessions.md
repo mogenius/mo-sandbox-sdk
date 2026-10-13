@@ -28,6 +28,9 @@ sandbox stops, or when a command runs `exit`.
 
 ## State carries over
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 await sandbox.process.createSession('dev');
 
@@ -42,6 +45,8 @@ await sandbox.process.executeSessionCommand('dev', { command: 'python -c "import
 
 await sandbox.process.deleteSession('dev');
 ```
+
+</details>
 
 <details>
 <summary><b>Go</b></summary>
@@ -68,6 +73,9 @@ A synchronous call waits up to `timeout` seconds (default 60). `runAsync: true` 
 > **The command is not stopped when the wait runs out** — the answer then has no `exitCode`; fetch the result
 > later with `getSessionCommand`.
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 // background: a dev server keeps running after the call returns
 const server = await sandbox.process.executeSessionCommand('web', {
@@ -84,6 +92,8 @@ const cmd = await sandbox.process.getSessionCommand('dev', slow.cmdId);
 console.log(cmd.command, cmd.exitCode);
 ```
 
+</details>
+
 <details>
 <summary><b>Go</b></summary>
 
@@ -99,6 +109,9 @@ fmt.Println(cmd["command"], cmd["exitCode"]) // exitCode absent while running
 
 ## Logs
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 // what it printed so far
 const text = await sandbox.process.getSessionCommandLogs('dev', cmdId);
@@ -107,6 +120,8 @@ const text = await sandbox.process.getSessionCommandLogs('dev', cmdId);
 await sandbox.process.getSessionCommandLogs('dev', cmdId, (chunk) => process.stdout.write(chunk));
 const { exitCode } = await sandbox.process.getSessionCommand('dev', cmdId);
 ```
+
+</details>
 
 <details>
 <summary><b>Go</b></summary>
@@ -139,6 +154,9 @@ Following live goes through the stream gateway and needs `organizationId` and `c
 Write to the standard input of the running command — what `read` or an interactive program waits for. Data is
 written verbatim, so end lines with `\n`.
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 const ask = await sandbox.process.executeSessionCommand('dev', {
   command: 'read name; echo hello $name',
@@ -147,6 +165,8 @@ const ask = await sandbox.process.executeSessionCommand('dev', {
 await sandbox.process.sendSessionCommandInput('dev', ask.cmdId, 'jane\n');
 await sandbox.process.getSessionCommandLogs('dev', ask.cmdId, (c) => process.stdout.write(c)); // hello jane
 ```
+
+</details>
 
 <details>
 <summary><b>Go</b></summary>
@@ -165,6 +185,9 @@ err = sandbox.Process.SendSessionCommandInput(ctx, "dev", cmdID, "jane\n")
 > A command's text is listed with the session (`getSession`), its environment is not — **put API keys into
 > `env`, never into the command line**.
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 await sandbox.process.createSession('agent', {
   env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY!, LINEAR_API_KEY: process.env.LINEAR_API_KEY! },
@@ -174,6 +197,8 @@ await sandbox.process.createSession('agent', {
 await sandbox.process.createSession('sidecar', { container: 'worker' });
 await sandbox.process.createSession('sidecar2', 'worker'); // short form: just the container
 ```
+
+</details>
 
 <details>
 <summary><b>Go</b></summary>
@@ -192,6 +217,9 @@ err := sandbox.Process.CreateSession(ctx, "agent",
 A session command has no time limit of its own, unlike `executeCommand` (5 minutes by default on the cluster).
 Run an agent as a background session command and follow its logs:
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 await sandbox.process.createSession('agent', { env: { ANTHROPIC_API_KEY: key } });
 const { cmdId } = await sandbox.process.executeSessionCommand('agent', {
@@ -201,6 +229,8 @@ const { cmdId } = await sandbox.process.executeSessionCommand('agent', {
 await sandbox.process.getSessionCommandLogs('agent', cmdId, (chunk) => process.stdout.write(chunk));
 const { exitCode } = await sandbox.process.getSessionCommand('agent', cmdId);
 ```
+
+</details>
 
 [`packages/go/examples/chat`](../packages/go/examples/chat) holds a whole multi-turn conversation with Claude Code
 this way: one process, messages over stdin, each turn as long as it takes.

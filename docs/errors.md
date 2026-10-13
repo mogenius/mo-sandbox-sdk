@@ -43,6 +43,9 @@ Every error the SDK throws (TS) or returns (Go) belongs to one hierarchy. Each c
 
 ## Handling errors
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 import {
   MogeniusError,
@@ -68,6 +71,8 @@ try {
   }
 }
 ```
+
+</details>
 
 <details>
 <summary><b>Go</b></summary>
@@ -103,6 +108,9 @@ case err != nil:
 
 ## Retry on a transient conflict
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 async function withRetry<T>(fn: () => Promise<T>, attempts = 5): Promise<T> {
   for (let i = 1; ; i++) {
@@ -118,6 +126,8 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 5): Promise<T> {
 
 await withRetry(() => sandbox.process.executeCommand('echo ready'));
 ```
+
+</details>
 
 ---
 

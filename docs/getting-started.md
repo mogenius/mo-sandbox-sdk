@@ -11,6 +11,9 @@
 
 ## Install
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 The package is published to GitHub Packages. Point the `@mogenius` scope there in your `.npmrc`, with a GitHub
 token that has `read:packages`:
 
@@ -22,6 +25,8 @@ token that has `read:packages`:
 ```bash
 npm install @mogenius/sandbox
 ```
+
+</details>
 
 <details>
 <summary><b>Go</b></summary>
@@ -77,6 +82,9 @@ set -a; . ./.env; set +a
 
 ## Your first sandbox
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 import { Mogenius } from '@mogenius/sandbox';
 
@@ -97,6 +105,8 @@ try {
   await mogenius.delete(sandbox);
 }
 ```
+
+</details>
 
 <details>
 <summary><b>Go</b></summary>

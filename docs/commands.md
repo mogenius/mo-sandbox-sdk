@@ -16,6 +16,9 @@ A non-zero exit code is a result, not an error.
 
 ## executeCommand
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 // executeCommand(command, cwd?, env?, timeout = 10, container?)
 const result = await sandbox.process.executeCommand('ls -la');
@@ -32,6 +35,8 @@ if (test.exitCode !== 0) {
 // in another container of the pod (a sidecar)
 await sandbox.process.executeCommand('redis-cli ping', undefined, undefined, 10, 'redis');
 ```
+
+</details>
 
 <details>
 <summary><b>Go</b></summary>
@@ -63,6 +68,9 @@ _, err = sandbox.Process.ExecuteCommand(ctx, "redis-cli ping", options.WithConta
 For anything that runs longer, use `executeCommandStream` with a larger timeout or a background
 [session command](sessions.md), which has no time limit.
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 import { MogeniusProcessExecutionTimeoutError } from '@mogenius/sandbox';
 
@@ -73,11 +81,16 @@ try {
 }
 ```
 
+</details>
+
 ## codeRun
 
 Runs a snippet with the sandbox's default language (`python` unless set at create) or the one you pass:
 Python through `python3`, TypeScript through `tsx`, JavaScript through `node`. The code travels base64-encoded —
 quotes and newlines need no escaping.
+
+<details open>
+<summary><b>TypeScript</b></summary>
 
 ```ts
 // codeRun(code, params?, timeout = 10)
@@ -97,6 +110,8 @@ const js = await sandbox.process.codeRun('console.log(process.argv.slice(2))', {
 // longer runs: third argument, seconds
 await sandbox.process.codeRun(longScript, undefined, 120);
 ```
+
+</details>
 
 | Param       | Meaning                                                          |
 | ----------- | ---------------------------------------------------------------- |
@@ -132,6 +147,9 @@ for every figure still open at the end. The image only needs matplotlib.
 Each chart has `type` (`line`, `bar`, `scatter`, `pie`, `composite` for several axes, or `unknown`), `title`
 (the figure's or axis' title) and `png` (base64).
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 import { writeFileSync } from 'node:fs';
 
@@ -147,6 +165,8 @@ for (const [i, chart] of (run.artifacts?.charts ?? []).entries()) {
   if (chart.png) writeFileSync(`chart-${i}.png`, Buffer.from(chart.png, 'base64'));
 }
 ```
+
+</details>
 
 <details>
 <summary><b>Go</b></summary>
@@ -173,6 +193,9 @@ for i, chart := range run.Artifacts.Charts {
 > [!NOTE]
 > Needs `organizationId` and `clusterId` in the config (see [Getting started](getting-started.md#configure)).
 
+<details open>
+<summary><b>TypeScript</b></summary>
+
 ```ts
 const decoder = new TextDecoder();
 
@@ -194,6 +217,8 @@ for await (const event of sandbox.process.executeCommandStream('npm run build --
   if (event.type === 'stdout' && decoder.decode(event.data).includes('built in')) break; // stops the command
 }
 ```
+
+</details>
 
 <details>
 <summary><b>Go</b></summary>
