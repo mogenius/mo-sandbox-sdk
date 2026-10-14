@@ -165,8 +165,8 @@ func TestSessionsRunOnThePodRoutes(t *testing.T) {
 		reply{status: 201, body: session},
 		reply{status: 201, body: map[string]any{"cmdId": "c1", "exitCode": 0, "output": "hi\n"}},
 		reply{status: 201, body: map[string]any{"cmdId": "c2", "exitCode": nil}},
-		reply{body: map[string]any{"id": "c2", "command": "sleep 5", "exitCode": nil}},
-		reply{body: map[string]any{"output": "partial"}},
+		reply{body: map[string]any{"id": "c2", "command": "sleep 5", "exitCode": nil, "truncated": true}},
+		reply{body: map[string]any{"output": "partial", "truncated": true}},
 		reply{status: 201},
 		reply{body: session},
 		reply{body: []any{session}},
@@ -190,11 +190,11 @@ func TestSessionsRunOnThePodRoutes(t *testing.T) {
 		t.Fatalf("async %#v, %v", async, err)
 	}
 	command, err := process.GetSessionCommand(ctx, "build", "c2")
-	if err != nil || !reflect.DeepEqual(command, map[string]any{"id": "c2", "command": "sleep 5"}) {
+	if err != nil || !reflect.DeepEqual(command, map[string]any{"id": "c2", "command": "sleep 5", "truncated": true}) {
 		t.Fatalf("command %#v, %v", command, err)
 	}
 	logs, err := process.GetSessionCommandLogs(ctx, "build", "c2")
-	if err != nil || logs.Output != "partial" {
+	if err != nil || logs.Output != "partial" || !logs.Truncated {
 		t.Fatalf("logs %+v, %v", logs, err)
 	}
 	if err := process.SendSessionCommandInput(ctx, "build", "c2", "y\n"); err != nil {

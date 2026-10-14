@@ -277,6 +277,8 @@ export interface SessionCommand {
   command: string;
   /** Undefined while the command is still running. */
   exitCode?: number;
+  /** The output went beyond the cluster's cap for a session command; the rest was dropped, the command ran on. */
+  truncated?: boolean;
 }
 
 /** Request of `executeSessionCommand()`. */

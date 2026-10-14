@@ -51,6 +51,7 @@ interface SessionCommandBody {
   id: string;
   command: string;
   exitCode: number | null;
+  truncated?: boolean;
 }
 interface SessionExecuteResponseBody {
   cmdId: string;
@@ -388,6 +389,7 @@ function toSessionCommand(body: SessionCommandBody): SessionCommand {
     id: body.id,
     command: body.command,
     ...(body.exitCode === null || body.exitCode === undefined ? {} : { exitCode: body.exitCode }),
+    ...(body.truncated ? { truncated: true } : {}),
   };
 }
 

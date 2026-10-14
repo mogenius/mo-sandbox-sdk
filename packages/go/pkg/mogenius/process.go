@@ -206,9 +206,10 @@ type sessionBody struct {
 }
 
 type sessionCommandBody struct {
-	ID       string `json:"id"`
-	Command  string `json:"command"`
-	ExitCode *int32 `json:"exitCode"`
+	ID        string `json:"id"`
+	Command   string `json:"command"`
+	ExitCode  *int32 `json:"exitCode"`
+	Truncated bool   `json:"truncated"`
 }
 
 type sessionExecuteBody struct {
@@ -322,7 +323,9 @@ func (p *ProcessService) ExecuteSessionCommand(ctx context.Context, sessionID, c
 	return result, nil
 }
 
-// GetSessionCommand returns id, command and, once it has ended, exitCode.
+// GetSessionCommand returns id, command and, once it has ended, exitCode;
+// truncated is true when the output went beyond the cluster's cap for a
+// session command and the rest was dropped (the command ran on).
 func (p *ProcessService) GetSessionCommand(ctx context.Context, sessionID, commandID string) (map[string]any, error) {
 	path, err := p.sessionPath(ctx, sessionID)
 	if err != nil {
@@ -342,12 +345,13 @@ func (p *ProcessService) GetSessionCommandLogs(ctx context.Context, sessionID, c
 		return nil, err
 	}
 	var body struct {
-		Output string `json:"output"`
+		Output    string `json:"output"`
+		Truncated bool   `json:"truncated"`
 	}
 	if err := p.sandbox.api.get(ctx, path+"/command/"+segment(commandID)+"/logs", nil, &body); err != nil {
 		return nil, err
 	}
-	return &types.SessionCommandLogsResponse{Output: body.Output}, nil
+	return &types.SessionCommandLogsResponse{Output: body.Output, Truncated: body.Truncated}, nil
 }
 
 // GetSessionCommandLogsStream follows the command live over the stream
@@ -464,6 +468,9 @@ func commandMap(body sessionCommandBody) map[string]any {
 	command := map[string]any{"id": body.ID, "command": body.Command}
 	if body.ExitCode != nil {
 		command["exitCode"] = *body.ExitCode
+	}
+	if body.Truncated {
+		command["truncated"] = true
 	}
 	return command
 }

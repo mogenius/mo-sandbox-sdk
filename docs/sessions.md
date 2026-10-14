@@ -23,6 +23,10 @@ longer than the cluster's limit for a plain command, or when it reads from stdin
 A session ends with `deleteSession`, after 30 minutes without a running command (operator setting), when the
 sandbox stops, or when a command runs `exit`.
 
+A command keeps the first 16 MiB of its output, stdout and stderr together (operator setting
+`MO_SESSION_COMMAND_MAX_OUTPUT_BYTES`); what comes after is dropped while the command runs on, and the command
+reports `truncated: true`.
+
 > [!NOTE]
 > Sessions are bound to the API key that opened them: another key neither sees nor uses them.
 

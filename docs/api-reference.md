@@ -66,7 +66,7 @@ Go options: `WithCwd`, `WithCommandEnv`, `WithExecuteTimeout`, `WithContainer` (
 | `listSessions()`                                              | `ListSessions(ctx)`                                               | sessions of your key                      |
 | `deleteSession(id)`                                           | `DeleteSession(ctx, id)`                                          | ends shell and running command            |
 | `executeSessionCommand(id, { command, runAsync?, timeout? })` | `ExecuteSessionCommand(ctx, id, cmd, runAsync, suppressInputEcho)` | `{ cmdId, exitCode?, output? }` / map with `id`, `exitCode`, `stdout`, `output` |
-| `getSessionCommand(id, cmdId)`                                | `GetSessionCommand(ctx, id, cmdId)`                               | `{ id, command, exitCode? }`              |
+| `getSessionCommand(id, cmdId)`                                | `GetSessionCommand(ctx, id, cmdId)`                               | `{ id, command, exitCode?, truncated? }`  |
 | `getSessionCommandLogs(id, cmdId)`                            | `GetSessionCommandLogs(ctx, id, cmdId)`                           | output so far                             |
 | `getSessionCommandLogs(id, cmdId, onLogs)`                    | `GetSessionCommandLogsStream(ctx, id, cmdId, stdout, stderr)`     | follows live until the command ends       |
 | `sendSessionCommandInput(id, cmdId, data)`                    | `SendSessionCommandInput(ctx, id, cmdId, data)`                   | writes to stdin                           |

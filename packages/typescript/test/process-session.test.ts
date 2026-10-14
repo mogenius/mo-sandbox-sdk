@@ -104,6 +104,7 @@ describe('Process sessions', () => {
     const { fetch, calls } = fakeFetch(
       { body: sandboxInfo() },
       { body: { id: 'c1', command: 'read x', exitCode: null, startedAt: 'x', finishedAt: null } },
+      { body: { id: 'c2', command: 'yes', exitCode: 0, startedAt: 'x', finishedAt: 'y', truncated: true } },
       { body: { output: 'prompt: ', stdout: 'prompt: ', stderr: '', exitCode: null, truncated: false } },
       { status: 204 },
     );
@@ -112,15 +113,21 @@ describe('Process sessions', () => {
     const command = await sandbox.process.getSessionCommand('dev', 'c1');
     expect(calls[1]!.url.pathname).toBe(`${base}/dev/command/c1`);
     expect(command).toEqual({ id: 'c1', command: 'read x' });
+    expect(await sandbox.process.getSessionCommand('dev', 'c2')).toEqual({
+      id: 'c2',
+      command: 'yes',
+      exitCode: 0,
+      truncated: true,
+    });
 
     const logs = await sandbox.process.getSessionCommandLogs('dev', 'c1');
-    expect(calls[2]!.url.pathname).toBe(`${base}/dev/command/c1/logs`);
+    expect(calls[3]!.url.pathname).toBe(`${base}/dev/command/c1/logs`);
     expect(logs).toBe('prompt: ');
 
     await sandbox.process.sendSessionCommandInput('dev', 'c1', 'hello\n');
-    expect(calls[3]!.method).toBe('POST');
-    expect(calls[3]!.url.pathname).toBe(`${base}/dev/command/c1/input`);
-    expect(calls[3]!.body).toEqual({ data: 'hello\n' });
+    expect(calls[4]!.method).toBe('POST');
+    expect(calls[4]!.url.pathname).toBe(`${base}/dev/command/c1/input`);
+    expect(calls[4]!.body).toEqual({ data: 'hello\n' });
   });
 
   it('follows the logs live over the session-log stream and resolves at the exit', async () => {

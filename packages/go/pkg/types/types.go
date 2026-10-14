@@ -175,4 +175,6 @@ type ExecEvent struct {
 type SessionCommandLogsResponse struct {
 	// Output is stdout and stderr in arrival order: a session's shell writes both into one stream.
 	Output string
+	// Truncated: the output went beyond the cluster's cap for a session command; the rest was dropped.
+	Truncated bool
 }
