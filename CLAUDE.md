@@ -43,6 +43,10 @@ cd packages/go && go test ./... && go vet ./... && gofmt -l .
 - **Both SDKs move together.** A new route or call lands in TypeScript and Go; Go mirrors the TypeScript
   behaviour with Go's established shapes (functional options, `context.Context` first, `map[string]any` where
   agent frameworks return maps).
+- **A new call is documented in the guides, not only in the tables.** Besides `docs/api-reference.md`, both
+  READMEs and the route table below, it gets a section in the matching guide under `docs/` (TypeScript example
+  open, Go example in a collapsed `<details>`, a field table, what an empty or missing result means), a link from
+  `docs/concepts.md` where the concept is explained, and the guide's line in `docs/README.md` names it.
 - **codeRun's Python bootstrap exists twice** (`packages/typescript/src/python-bootstrap.ts`,
   `packages/go/pkg/mogenius/code_run.py`): it runs the snippet and prints matplotlib figures as `__mo_chart__:` lines.
   Change both; `TestPythonBootstrapMatchesTypeScript` fails when they differ.
@@ -59,6 +63,7 @@ cd packages/go && go test ./... && go vet ./... && gofmt -l .
 | `setLabels()`, `setAutoDeleteInterval()` | `PATCH /sandbox/:namespace/:id`                        |
 | `start()`, `stop()`                   | `POST /sandbox/:namespace/:id/start` · `/stop`            |
 | `delete()`                            | `DELETE /sandbox/:namespace/:id`                          |
+| `warmPools()`                         | generic resource route, as the mo-frontend's Sandboxes page: `GET /resource/workload/list?kind=SandboxWarmPool&plural=sandboxwarmpools&apiVersion=extensions.agents.x-k8s.io/v1beta1&namespaced=true&namespace&withData=false` (`DefaultResourceDescriptor.SandboxWarmPool`; `namespace` left out for all namespaces, as the frontend does); answer `data.items` or a bare list; an unknown resource type (agent-sandbox not installed) is an empty list |
 | `process.executeCommand()`, `codeRun()` | pod route, not a sandbox route: `POST /resource/exec/:namespace/:podName` (`podName` from the sandbox data, refreshed once when still null; `container` in the body, the sandbox's by default; the stream takes it as query) |
 | `process.executeCommandStream()`      | stream gateway `/xterm-stream?type=CLUSTER__POD_EXEC&cmd=exec&namespace&podName&container&binary=1`; on the text frame `SEND_EXEC_REQUEST` the client sends one text frame with the `K8sPodExecRequestDto` JSON (never in the URL: Cloudflare blocks shell syntax there, base64 too). Then binary frames tag 0 stdout / 1 stderr; text `EXIT:<code>`, `TRUNCATED`, `TIMEOUT`, `ERROR:<msg>` |
 | `fs.listFiles()`, `fs.getFileDetails()` | pod routes: `GET /resource/files/:namespace/:podName` · `…/info`; every file route takes `?container=` (the sandbox's) |

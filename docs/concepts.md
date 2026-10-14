@@ -31,7 +31,8 @@ A sandbox is built on [kubernetes-sigs/agent-sandbox](https://github.com/kuberne
 
 Profiles are configured on the cluster's **Sandboxes** page in the mogenius platform. The SDK picks the profile
 in this order: `snapshot` in the create params → the configured `profile` (`MOGENIUS_SANDBOX_PROFILE`) →
-`default`.
+`default`. To see which warm pools a cluster has, in which namespace and how many of their sandboxes are ready,
+use [`warmPools()`](sandboxes.md#warm-pools).
 
 <details open>
 <summary><b>TypeScript</b></summary>

@@ -370,3 +370,21 @@ export interface SetFilePermissionsParams {
   owner?: string;
   group?: string;
 }
+
+/** Options of `warmPools()` (mogenius). */
+export interface ListWarmPoolsOptions {
+  /** List the pools of every namespace instead of the client's; pools may live in any of them. Default: false */
+  allNamespaces?: boolean;
+}
+
+/** A SandboxWarmPool (mogenius): the pre-started sandboxes `create()` claims from, in its own namespace. */
+export interface WarmPool {
+  name: string;
+  namespace: string;
+  /** The SandboxTemplate the pool's sandboxes are stamped from (`spec.sandboxTemplateRef.name`). */
+  template: string;
+  /** How many sandboxes wait to be claimed (`status.readyReplicas`). */
+  ready: number;
+  /** How many sandboxes the pool keeps warm (`spec.replicas`). */
+  size: number;
+}

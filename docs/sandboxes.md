@@ -86,6 +86,58 @@ compatibility; mogenius builds no images at create time, the channel is closed w
 
 </details>
 
+## Warm pools
+
+`warmPools()` lists the warm pools — the pre-started sandboxes `create()` claims from — so a UI or a script can
+offer the pools that exist instead of guessing a profile name. Without options it lists the client's namespace;
+pools may live in any namespace, so `allNamespaces` lists the whole cluster. A cluster without agent-sandbox
+has no pools: the list is empty, not an error.
+
+<details open>
+<summary><b>TypeScript</b></summary>
+
+```ts
+const pools = await mogenius.warmPools(); // the client's namespace
+const everywhere = await mogenius.warmPools({ allNamespaces: true }); // every namespace of the cluster
+
+for (const pool of everywhere) {
+  console.log(`${pool.namespace}/${pool.name}: ${pool.ready}/${pool.size} ready (template ${pool.template})`);
+}
+
+// claim from one of them: the client's namespace has to be the pool's
+const client = new Mogenius({ namespace: everywhere[0].namespace });
+const sandbox = await client.create({ snapshot: everywhere[0].name });
+```
+
+</details>
+
+| Field       | Type     | Meaning                                                          |
+| ----------- | -------- | ---------------------------------------------------------------- |
+| `name`      | `string` | Name of the pool; `snapshot` in `create()`                       |
+| `namespace` | `string` | Namespace of the pool; the client's `namespace` to claim from it |
+| `template`  | `string` | SandboxTemplate the pool's pods are stamped from                 |
+| `ready`     | `number` | Pre-started sandboxes ready to be claimed; `0` when not reported |
+| `size`      | `number` | Sandboxes the pool keeps; `0` when not set                       |
+
+The list is sorted by namespace, then name. Pools are created and sized on the cluster's **Sandboxes** page in
+the mogenius platform; the SDK only reads them.
+
+<details>
+<summary><b>Go</b></summary>
+
+```go
+pools, err := client.WarmPools(ctx)                                    // the client's namespace
+everywhere, err := client.WarmPools(ctx, options.WithAllNamespaces()) // every namespace of the cluster
+
+for _, pool := range everywhere {
+	fmt.Printf("%s/%s: %d/%d ready (template %s)\n", pool.Namespace, pool.Name, pool.Ready, pool.Size, pool.Template)
+}
+```
+
+`types.WarmPool` has the fields `Name`, `Namespace`, `Template`, `Ready` and `Size`.
+
+</details>
+
 ## Get, find and list
 
 <details open>

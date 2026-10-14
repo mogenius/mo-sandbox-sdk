@@ -43,6 +43,8 @@ const custom = await mogenius.create({ image: 'python:3.13', envVars: { MODE: 't
 const same = await mogenius.get(sandbox.id);
 const found = await mogenius.findOne({ labels: { project: 'demo' } });
 const page = await mogenius.list({ project: 'demo' }, { limit: 20 });
+const pools = await mogenius.warmPools(); // mogenius: [{ name, namespace, template, ready, size }]
+const everywhere = await mogenius.warmPools({ allNamespaces: true }); // pools may live in any namespace
 
 await sandbox.stop(); // pod goes, volume stays
 await sandbox.start(); // back with the same files

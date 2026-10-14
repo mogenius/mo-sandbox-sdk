@@ -31,3 +31,16 @@ func WithLogChannel(logChannel chan string) func(*CreateSandbox) {
 		opts.LogChannel = logChannel
 	}
 }
+
+// ListWarmPools are the options of Client.WarmPools (mogenius).
+type ListWarmPools struct {
+	// AllNamespaces lists the pools of every namespace instead of the client's. Default: false
+	AllNamespaces bool
+}
+
+// WithAllNamespaces makes WarmPools list every namespace: pools may live in any of them.
+func WithAllNamespaces() func(*ListWarmPools) {
+	return func(opts *ListWarmPools) {
+		opts.AllNamespaces = true
+	}
+}

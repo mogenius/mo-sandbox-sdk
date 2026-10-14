@@ -1,22 +1,53 @@
 import { ApiClient } from './api-client.js';
 import { resolveConfig } from './config.js';
-import { MogeniusNotFoundError, MogeniusUnsupportedError } from './errors.js';
+import { MogeniusError, MogeniusNotFoundError, MogeniusUnsupportedError } from './errors.js';
 import { Sandbox } from './sandbox.js';
 import type {
   CodeLanguage,
   CreateSandboxOptions,
   CreateSandboxParams,
   ListSandboxesOptions,
+  ListWarmPoolsOptions,
   MogeniusConfig,
   PaginatedSandboxes,
   SandboxFilter,
   SandboxInfo,
+  WarmPool,
 } from './types.js';
 
 interface ListResponseBody {
   items: SandboxInfo[];
   nextCursor: string | null;
   totalCount: number;
+}
+
+/** The part of a SandboxWarmPool the SDK reads. */
+interface WarmPoolObject {
+  metadata?: { name?: string; namespace?: string };
+  spec?: { replicas?: number; sandboxTemplateRef?: { name?: string } };
+  status?: { readyReplicas?: number };
+}
+
+/** The operator's answer as the platform relays it: an UnstructuredList in `data` (`data.items`), or a bare list. */
+interface WorkloadListBody {
+  status?: 'success' | 'error';
+  message?: string;
+  statusCode?: number;
+  data?: { items?: WarmPoolObject[] } | WarmPoolObject[] | null;
+}
+
+function compare(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** Kubernetes' answers for a resource type the cluster does not know (agent-sandbox not installed). */
+function isMissingTypeMessage(message: string | undefined): boolean {
+  const text = (message ?? '').toLowerCase();
+  return (
+    text.includes('could not find the requested resource') ||
+    text.includes('no matches for kind') ||
+    text.includes("doesn't have a resource type")
+  );
 }
 
 /**
@@ -122,6 +153,58 @@ export class Mogenius {
       nextCursor: body.nextCursor,
       total: body.totalCount,
     };
+  }
+
+  /**
+   * Warm pools of the namespace (mogenius), or of every namespace with
+   * `allNamespaces`, sorted by namespace and name. A cluster without the
+   * agent-sandbox resource types has none: an empty list, not an error.
+   */
+  async warmPools(options: ListWarmPoolsOptions = {}): Promise<WarmPool[]> {
+    let body: WorkloadListBody;
+    try {
+      // The SandboxWarmPool type as the platform's generic resource routes name it; the objects' data is left out.
+      // Without a namespace the platform lists every namespace.
+      body = await this.api.get<WorkloadListBody>('/resource/workload/list', {
+        kind: 'SandboxWarmPool',
+        plural: 'sandboxwarmpools',
+        apiVersion: 'extensions.agents.x-k8s.io/v1beta1',
+        namespaced: 'true',
+        namespace: options.allNamespaces ? undefined : this.namespace,
+        withData: 'false',
+      });
+    } catch (err) {
+      if (
+        err instanceof MogeniusNotFoundError ||
+        (err instanceof MogeniusError && err.statusCode === 400 && isMissingTypeMessage(err.message))
+      ) {
+        return [];
+      }
+      throw err;
+    }
+    if (body?.status === 'error') {
+      if (body.statusCode === 404 || isMissingTypeMessage(body.message)) {
+        return [];
+      }
+      throw new MogeniusError(`listing warm pools: ${body.message ?? 'unknown error'}`, {
+        statusCode: body.statusCode,
+        source: 'operator',
+      });
+    }
+    const data = body?.data;
+    const items = Array.isArray(data) ? data : (data?.items ?? []);
+    return (
+      items
+        .map((pool) => ({
+          name: pool.metadata?.name ?? '',
+          namespace: pool.metadata?.namespace ?? '',
+          template: pool.spec?.sandboxTemplateRef?.name ?? '',
+          ready: pool.status?.readyReplicas ?? 0,
+          size: pool.spec?.replicas ?? 0,
+        }))
+        // by code point, as the Go SDK sorts
+        .sort((a, b) => compare(a.namespace, b.namespace) || compare(a.name, b.name))
+    );
   }
 
   /** Starts a stopped sandbox. */

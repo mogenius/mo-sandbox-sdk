@@ -68,6 +68,7 @@ sandbox, err = client.Create(ctx, types.ImageParams{Image: "python:3.12-slim"}, 
 | ------------------------------------------------------- | -------------------------------------------------- |
 | `client.Get(ctx, id)`                                    | one sandbox by claim or sandbox name               |
 | `client.List(ctx, query)` / `client.ListSeq(ctx, query)` | all sandboxes, paged, by labels and states        |
+| `client.WarmPools(ctx, options.WithAllNamespaces()?)`   | warm pools of the namespace, or of all (mogenius)  |
 | `sandbox.Start` / `Stop` / `Delete` (`…WithTimeout`)    | lifecycle; stopping keeps the volume               |
 | `sandbox.WaitForStart` / `WaitForStop`                  | poll until the state is reached                    |
 | `sandbox.SetLabels`, `sandbox.SetAutoDeleteInterval`    | labels; lifetime in minutes from now, nil removes it |

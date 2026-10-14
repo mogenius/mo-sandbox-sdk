@@ -50,4 +50,6 @@ export type {
   Match,
   ReplaceResult,
   SetFilePermissionsParams,
+  WarmPool,
+  ListWarmPoolsOptions,
 } from './types.js';

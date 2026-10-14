@@ -13,6 +13,7 @@ every package.
 | `get(id, language?)`                                | `Get(ctx, id)`                                        | `Sandbox`                                            |
 | `findOne({ id?, labels?, state? })`                 | —                                                     | first match, or `MogeniusNotFoundError`              |
 | `list(labels?, { limit?, cursor? }, state?)`        | `List(ctx, query)` · `ListSeq(ctx, query)`            | page `{ items, nextCursor, total }` / iterator       |
+| `warmPools({ allNamespaces? })` *m*                 | `WarmPools(ctx, opts...)`                             | `WarmPool[]` of the namespace (or all), by namespace and name; none without agent-sandbox |
 | `start(sandbox, timeout?)`                          | —                                                     | `sandbox.start()`                                    |
 | `stop(sandbox, timeout?)`                           | —                                                     | `sandbox.stop()`                                     |
 | `delete(sandbox)`                                   | —                                                     | `sandbox.delete()`                                   |
@@ -21,7 +22,8 @@ every package.
 
 Go iterator: `it.Next()`, `it.Value()`, `it.Err()`. Query: `ListSandboxesQuery{ Limit, Labels, States }`.
 
-Go create options (`pkg/options`): `WithTimeout(d)`, `WithWaitForStart(bool)`, `WithLogChannel(ch)`.
+Go create options (`pkg/options`): `WithTimeout(d)`, `WithWaitForStart(bool)`, `WithLogChannel(ch)`. Warm pool
+options: `WithAllNamespaces()`.
 
 ## Sandbox
 

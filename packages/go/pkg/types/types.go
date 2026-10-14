@@ -178,3 +178,16 @@ type SessionCommandLogsResponse struct {
 	// Truncated: the output went beyond the cluster's cap for a session command; the rest was dropped.
 	Truncated bool
 }
+
+// WarmPool is a SandboxWarmPool of the client's namespace (mogenius): the
+// pre-started sandboxes Create claims from.
+type WarmPool struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+	// Template is the SandboxTemplate the pool's sandboxes are stamped from (spec.sandboxTemplateRef.name).
+	Template string `json:"template"`
+	// Ready is how many sandboxes wait to be claimed (status.readyReplicas).
+	Ready int `json:"ready"`
+	// Size is how many sandboxes the pool keeps warm (spec.replicas).
+	Size int `json:"size"`
+}
