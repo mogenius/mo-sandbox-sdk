@@ -55,6 +55,12 @@ type Sandbox struct {
 	OperatingMode *string
 	// mogenius: CreatedBy is who created the sandbox.
 	CreatedBy *string
+	// AutoStopInterval is the minutes without a toolbox call after which the sandbox stops; 0 never.
+	AutoStopInterval int
+	// mogenius: LastActivityAt is the last toolbox call the cluster saw; nil before the first.
+	LastActivityAt *string
+	// mogenius: Persistent: the sandbox has a volume of its own; a stop keeps what lies on it.
+	Persistent bool
 
 	// Process runs commands, code and sessions inside the sandbox.
 	Process *ProcessService
@@ -85,6 +91,10 @@ type sandboxDTO struct {
 	SandboxName   *string           `json:"sandboxName"`
 	OperatingMode *string           `json:"operatingMode"`
 	CreatedBy     *string           `json:"createdBy"`
+	// AutoStopInterval and LastActivityAt come from the auto-stop (MOG-4697).
+	AutoStopInterval int     `json:"autoStopInterval"`
+	LastActivityAt   *string `json:"lastActivityAt"`
+	Persistent       bool    `json:"persistent"`
 }
 
 func newSandbox(api *apiClient, dto sandboxDTO, language types.CodeLanguage) *Sandbox {
@@ -105,6 +115,7 @@ func (s *Sandbox) apply(dto sandboxDTO) {
 	s.CreatedAt, s.Image, s.PodName, s.ContainerName = dto.CreatedAt, dto.Image, dto.PodName, dto.ContainerName
 	s.ExpiresAt, s.Ephemeral, s.Kind = dto.ExpiresAt, dto.Ephemeral, dto.Kind
 	s.ServiceFQDN, s.SandboxName, s.OperatingMode, s.CreatedBy = dto.ServiceFQDN, dto.SandboxName, dto.OperatingMode, dto.CreatedBy
+	s.AutoStopInterval, s.LastActivityAt, s.Persistent = dto.AutoStopInterval, dto.LastActivityAt, dto.Persistent
 }
 
 func (s *Sandbox) path() string {
@@ -209,6 +220,23 @@ func (s *Sandbox) SetAutoDeleteInterval(ctx context.Context, intervalMinutes *in
 	return s.call(ctx, func(dto *sandboxDTO) error {
 		return s.api.patch(ctx, s.path(), map[string]any{"ttlMinutes": minutes}, dto)
 	})
+}
+
+// SetAutoStopInterval stops the sandbox after that many minutes without a toolbox call (exec,
+// files, sessions, tunnels); the pod goes, the volume stays. nil, 0 or a negative value: never.
+func (s *Sandbox) SetAutoStopInterval(ctx context.Context, intervalMinutes *int) error {
+	minutes := 0
+	if intervalMinutes != nil && *intervalMinutes > 0 {
+		minutes = *intervalMinutes
+	}
+	return s.call(ctx, func(dto *sandboxDTO) error {
+		return s.api.patch(ctx, s.path(), map[string]any{"autoStopInterval": minutes}, dto)
+	})
+}
+
+// RefreshActivity counts as a toolbox call: the auto-stop interval starts again from now.
+func (s *Sandbox) RefreshActivity(ctx context.Context) error {
+	return s.call(ctx, func(dto *sandboxDTO) error { return s.api.post(ctx, s.path()+"/activity", nil, nil, dto) })
 }
 
 // GetUserHomeDir is the home directory of the container user, asked from the running sandbox.

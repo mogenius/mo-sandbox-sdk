@@ -112,12 +112,14 @@ func TestCreateClaimsFromTheConfiguredProfile(t *testing.T) {
 func TestCreateFromASnapshot(t *testing.T) {
 	f := newFakePlatform(t, reply{status: 201, body: sandboxJSON(map[string]any{"labels": map[string]any{"project": "demo"}})})
 	interval := 30
+	idle := 20
 
 	sandbox, err := f.client(t).Create(context.Background(), types.SnapshotParams{
 		SandboxBaseParams: types.SandboxBaseParams{
 			Labels:             map[string]string{"project": "demo"},
 			EnvVars:            map[string]string{"A": "1"},
 			AutoDeleteInterval: &interval,
+			AutoStopInterval:   &idle,
 			Ephemeral:          true,
 		},
 		Snapshot: "gpu",
@@ -147,6 +149,7 @@ func TestCreateFromASnapshot(t *testing.T) {
 		"labels":             map[string]any{"project": "demo"},
 		"env":                map[string]any{"A": "1"},
 		"ttlMinutes":         float64(30),
+		"autoStopInterval":   float64(20),
 		"ephemeral":          true,
 		"waitForStart":       true,
 		"waitTimeoutSeconds": float64(60),

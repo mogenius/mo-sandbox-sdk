@@ -131,6 +131,9 @@ func (c *Client) Create(ctx context.Context, params any, opts ...func(*options.C
 	if base.AutoDeleteInterval != nil && *base.AutoDeleteInterval > 0 {
 		body["ttlMinutes"] = *base.AutoDeleteInterval
 	}
+	if base.AutoStopInterval != nil && *base.AutoStopInterval > 0 {
+		body["autoStopInterval"] = *base.AutoStopInterval
+	}
 	if base.Ephemeral {
 		body["ephemeral"] = true
 	}

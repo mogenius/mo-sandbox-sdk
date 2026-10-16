@@ -202,7 +202,8 @@ if errors.As(err, &notFound) {
 
 Sandboxes are Kubernetes pods, not micro-VMs. `Archive`, `Pause`, `ExperimentalFork`,
 `ExperimentalCreateSnapshot` and `SetAutoArchiveInterval` return `MogeniusUnsupportedError` naming the
-alternative; `AutoStopInterval` and `AutoArchiveInterval` are accepted and not used. Volumes, snapshot
+alternative; `AutoArchiveInterval` is accepted and not used. `AutoStopInterval` stops an idle sandbox and keeps its
+volume (`SetAutoStopInterval`, `RefreshActivity`). Volumes, snapshot
 management, PTY, git, code interpreter contexts and computer use are not part of the SDK.
 
 ## Development

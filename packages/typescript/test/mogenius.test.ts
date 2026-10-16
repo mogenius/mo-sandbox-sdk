@@ -55,6 +55,7 @@ describe('Mogenius.create', () => {
         labels: { team: 'a' },
         envVars: { FOO: 'bar' },
         autoDeleteInterval: 30,
+        autoStopInterval: 20,
         ephemeral: false,
         language: 'typescript',
       },
@@ -69,6 +70,7 @@ describe('Mogenius.create', () => {
       labels: { team: 'a' },
       env: { FOO: 'bar' },
       ttlMinutes: 30,
+      autoStopInterval: 20,
       ephemeral: false,
       waitForStart: true,
       waitTimeoutSeconds: 120,
@@ -198,6 +200,27 @@ describe('Sandbox lifecycle', () => {
     await sandbox.setAutoDeleteInterval(60);
     expect(calls[2]!.body).toEqual({ ttlMinutes: 60 });
     expect(sandbox.expiresAt).toBe('2026-10-01T13:00:00.000Z');
+  });
+
+  it('setAutostopInterval patches and refreshActivity posts to the activity route', async () => {
+    const { fetch, calls } = fakeFetch(
+      { body: sandboxInfo() },
+      { body: sandboxInfo({ autoStopInterval: 45, persistent: true }) },
+      { body: sandboxInfo({ autoStopInterval: 45, lastActivityAt: '2026-10-01T13:01:00.000Z' }) },
+    );
+    const sandbox = await new Mogenius({ ...CONFIG, fetch }).get('default-abc12');
+    expect(sandbox.autoStopInterval).toBe(0);
+
+    await sandbox.setAutostopInterval(45.7);
+    expect(calls[1]!.method).toBe('PATCH');
+    expect(calls[1]!.body).toEqual({ autoStopInterval: 45 });
+    expect(sandbox.autoStopInterval).toBe(45);
+    expect(sandbox.persistent).toBe(true);
+
+    await sandbox.refreshActivity();
+    expect(calls[2]!.method).toBe('POST');
+    expect(calls[2]!.url.pathname).toBe('/sandbox/agent-sandbox/default-abc12/activity');
+    expect(sandbox.lastActivityAt).toBe('2026-10-01T13:01:00.000Z');
   });
 
   it('delete sends DELETE and exposes the public field names', async () => {

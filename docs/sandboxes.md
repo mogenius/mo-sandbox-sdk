@@ -47,6 +47,7 @@ await later.waitUntilStarted(90);
 | `labels`             | `Record<string, string>`   | Kubernetes labels; `list()` and `findOne()` filter by them               |
 | `envVars`            | `Record<string, string>`   | Env of the container. On a warm-pool sandbox the profile must allow it    |
 | `autoDeleteInterval` | `number` (minutes)         | Lifetime; absent means no deadline                                       |
+| `autoStopInterval`   | `number` (minutes)         | Stop after this long without a toolbox call; absent means never ([auto-stop](#auto-stop)) |
 | `ephemeral`          | `boolean`                  | Delete pod **and** storage with the sandbox (default `true`)             |
 | `language`           | `'python' \| 'typescript' \| 'javascript'` | Default language of `codeRun` (default `python`)         |
 
@@ -215,6 +216,9 @@ for sandbox, err := range client.ListSeq(ctx, nil) {
 | `sandboxName`      | `SandboxName`    | The `Sandbox` object behind a claim                               |
 | `operatingMode`    | `OperatingMode`  | `Running` or `Suspended`                                          |
 | `createdBy`        | `CreatedBy`      | Who created it                                                    |
+| `autoStopInterval` | `AutoStopInterval` | Minutes without a toolbox call until it stops; 0 never          |
+| `lastActivityAt` *m* | `LastActivityAt` *m* | Last toolbox call the cluster saw; null before the first    |
+| `persistent` *m*   | `Persistent` *m* | Has a volume of its own; a stop keeps what lies on it             |
 | `data.kind`        | `Kind`           | `SandboxClaim` (warm pool) or `Sandbox` (own image)               |
 | `data.ephemeral`   | `Ephemeral`      | Pod and storage go with the sandbox                               |
 | `data`             | —                | Everything the platform returned, as `SandboxInfo`                 |
@@ -285,6 +289,52 @@ err = sandbox.SetAutoDeleteInterval(ctx, nil) // no deadline
 ```
 
 </details>
+
+## Auto-stop
+
+A sandbox with an auto-stop interval is stopped after that many minutes without a toolbox call: the pod goes, the
+volume stays, and `start()` brings the same sandbox back with its files. Toolbox calls are commands, sessions, file
+operations and open tunnels; a session command that is still running and an attached terminal keep the sandbox up
+too. Reading the sandbox (`get`, `list`, `refreshData`) or changing labels and lifetime does not count. The cluster's
+operator measures it, so it works while your program is not running. Only what lies on the volume (the profile's
+`mountPath`) survives a stop; the home directory does not.
+
+<details open>
+<summary><b>TypeScript</b></summary>
+
+```ts
+const sandbox = await mogenius.create({ snapshot: 'default', autoStopInterval: 30 }); // stop after 30 idle minutes
+await sandbox.setAutostopInterval(60); // change it; 0 turns it off
+await sandbox.refreshActivity(); // counts as a call: 60 minutes from now
+console.log(sandbox.autoStopInterval, sandbox.lastActivityAt);
+```
+
+</details>
+
+<details>
+<summary><b>Go</b></summary>
+
+```go
+idle := 30
+sandbox, err := client.Create(ctx, types.SnapshotParams{
+	SandboxBaseParams: types.SandboxBaseParams{AutoStopInterval: &idle},
+	Snapshot:          "default",
+})
+hour := 60
+err = sandbox.SetAutoStopInterval(ctx, &hour) // nil or 0 turns it off
+err = sandbox.RefreshActivity(ctx)
+fmt.Println(sandbox.AutoStopInterval, sandbox.LastActivityAt)
+```
+
+</details>
+
+| Field              | Meaning                                                                  |
+| ------------------ | ------------------------------------------------------------------------ |
+| `autoStopInterval` | Minutes; 0 when the sandbox never stops on its own                       |
+| `lastActivityAt`   | Written by the cluster at most once a minute; null before the first call |
+| `persistent`       | Whether the profile gives the sandbox a volume; without one a stop keeps nothing |
+
+A lifetime (`autoDeleteInterval`) still runs while the sandbox is stopped and deletes it at the deadline.
 
 ## Directories
 

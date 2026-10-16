@@ -60,7 +60,8 @@ cd packages/go && go test ./... && go vet ./... && gofmt -l .
 | `create()`                            | `POST /sandbox/:namespace`                                |
 | `list()`, `findOne()`                 | `GET /sandbox/:namespace?labels&state&limit&cursor`       |
 | `get()`, `refreshData()`              | `GET /sandbox/:namespace/:id`                             |
-| `setLabels()`, `setAutoDeleteInterval()` | `PATCH /sandbox/:namespace/:id`                        |
+| `setLabels()`, `setAutoDeleteInterval()`, `setAutostopInterval()` | `PATCH /sandbox/:namespace/:id`       |
+| `refreshActivity()`                   | `POST /sandbox/:namespace/:id/activity`                   |
 | `start()`, `stop()`                   | `POST /sandbox/:namespace/:id/start` · `/stop`            |
 | `delete()`                            | `DELETE /sandbox/:namespace/:id`                          |
 | `warmPools()`                         | generic resource route, as the mo-frontend's Sandboxes page: `GET /resource/workload/list?kind=SandboxWarmPool&plural=sandboxwarmpools&apiVersion=extensions.agents.x-k8s.io/v1beta1&namespaced=true&namespace&withData=false` (`DefaultResourceDescriptor.SandboxWarmPool`; `namespace` left out for all namespaces, as the frontend does); answer `data.items` or a bare list; an unknown resource type (agent-sandbox not installed) is an empty list |

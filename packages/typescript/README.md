@@ -171,4 +171,5 @@ or `sdk`). The hierarchy:
 ## Not available
 
 Micro-VM features have no Kubernetes equivalent and throw `MogeniusUnsupportedError`: `fork`, `archive`,
-`setAutostopInterval` (idle shutdown is planned), snapshot and volume management from the SDK, computer use.
+snapshot and volume management from the SDK, computer use. `setAutostopInterval` stops an idle sandbox and keeps its
+volume.

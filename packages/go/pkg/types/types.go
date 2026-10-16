@@ -60,9 +60,11 @@ type SandboxBaseParams struct {
 	EnvVars map[string]string
 	// Labels are Kubernetes labels; List filters by them.
 	Labels map[string]string
-	// AutoStopInterval and AutoArchiveInterval are accepted for compatibility: mogenius has
-	// no idle timer and no archive, so they are not used.
-	AutoStopInterval    *int
+	// AutoStopInterval stops the sandbox after that many minutes without a toolbox call (exec,
+	// files, sessions, tunnels); the pod goes, the volume stays, Start brings it back. nil or
+	// less than 1: never.
+	AutoStopInterval *int
+	// AutoArchiveInterval is accepted for compatibility: mogenius has no archive, so it is not used.
 	AutoArchiveInterval *int
 	// AutoDeleteInterval is the sandbox's lifetime in minutes from its creation; nil or
 	// less than 1 means no deadline.

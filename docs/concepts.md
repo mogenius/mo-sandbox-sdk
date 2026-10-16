@@ -104,11 +104,11 @@ Sandboxes are Kubernetes pods, not micro-VMs. These calls exist for compatibilit
 | `fork()` / `ExperimentalFork`                 | Create a new sandbox from the same profile                  |
 | `archive()` / `Archive`, `Pause`              | `stop()` — the volume stays                                 |
 | `setAutoArchiveInterval`                      | Delete the sandbox, or keep it stopped                      |
-| `setAutostopInterval` (TS)                    | `setAutoDeleteInterval` for a fixed lifetime (idle stop is planned) |
 | `mogenius.snapshot`, `ExperimentalCreateSnapshot` | Profiles are configured on the cluster's Sandboxes page |
 | `mogenius.volume`                             | Each sandbox gets its own volume from the profile           |
 
-`autoStopInterval` and `autoArchiveInterval` in the create params are accepted and ignored.
+`autoArchiveInterval` in the create params is accepted and ignored. `autoStopInterval` stops an idle sandbox and keeps
+its volume: see [auto-stop](sandboxes.md#auto-stop).
 
 ---
 

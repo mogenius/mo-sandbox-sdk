@@ -71,8 +71,12 @@ export interface CreateSandboxBaseParams {
   autoDeleteInterval?: number;
   /** Delete pod and storage when the lifetime ends or the sandbox is deleted (default true). */
   ephemeral?: boolean;
-  /** Accepted for compatibility; mogenius has no idle timer yet (MOG-4697) and takes resources from the profile. */
+  /**
+   * Minutes without a toolbox call (exec, files, sessions, tunnels) after which the sandbox stops: the pod goes,
+   * the volume stays, `start()` brings it back. Absent or 0: never.
+   */
   autoStopInterval?: number;
+  /** Accepted for compatibility; mogenius has no archive. */
   autoArchiveInterval?: number;
 }
 
@@ -230,6 +234,12 @@ export interface SandboxInfo {
   expiresAt: string | null;
   createdAt: string | null;
   createdBy: string | null;
+  /** Minutes without a toolbox call after which the sandbox stops; 0 never. */
+  autoStopInterval?: number;
+  /** ISO timestamp of the last toolbox call the cluster saw; null before the first. */
+  lastActivityAt?: string | null;
+  /** The sandbox has a volume of its own: a stop keeps what lies on it. */
+  persistent?: boolean;
 }
 
 /** Error body every sandbox route answers with. */

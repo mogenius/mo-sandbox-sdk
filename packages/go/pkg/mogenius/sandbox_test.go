@@ -21,6 +21,8 @@ func TestSandboxLifecycleRoutes(t *testing.T) {
 		reply{body: sandboxJSON(map[string]any{"labels": map[string]any{"team": "a"}})},
 		reply{body: sandboxJSON(map[string]any{"expiresAt": "2026-10-01T12:30:00.000Z"})},
 		reply{body: sandboxJSON(nil)},
+		reply{body: sandboxJSON(map[string]any{"autoStopInterval": 45, "persistent": true})},
+		reply{status: 200, body: sandboxJSON(map[string]any{"autoStopInterval": 45, "lastActivityAt": "2026-10-01T12:31:00.000Z"})},
 		reply{body: sandboxJSON(map[string]any{"state": "destroying"})},
 	)
 	sandbox := f.sandbox(t, nil)
@@ -42,6 +44,13 @@ func TestSandboxLifecycleRoutes(t *testing.T) {
 	if err := sandbox.SetAutoDeleteInterval(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
+	fortyFive := 45
+	if err := sandbox.SetAutoStopInterval(ctx, &fortyFive); err != nil || sandbox.AutoStopInterval != 45 || !sandbox.Persistent {
+		t.Fatalf("auto-stop: %v, %d", err, sandbox.AutoStopInterval)
+	}
+	if err := sandbox.RefreshActivity(ctx); err != nil || sandbox.LastActivityAt == nil {
+		t.Fatalf("activity: %v, %v", err, sandbox.LastActivityAt)
+	}
 	if err := sandbox.Delete(ctx); err != nil || sandbox.State != SandboxStateDestroying {
 		t.Fatalf("delete: %v, %s", err, sandbox.State)
 	}
@@ -56,6 +65,8 @@ func TestSandboxLifecycleRoutes(t *testing.T) {
 		{http.MethodPatch, path},
 		{http.MethodPatch, path},
 		{http.MethodPatch, path},
+		{http.MethodPatch, path},
+		{http.MethodPost, path + "/activity"},
 		{http.MethodDelete, path},
 	} {
 		expectCall(t, calls[i], want.method, want.path)
@@ -68,6 +79,9 @@ func TestSandboxLifecycleRoutes(t *testing.T) {
 	}
 	if ttl := calls[6].json(t).(map[string]any)["ttlMinutes"]; ttl != float64(0) {
 		t.Fatalf("nil interval should remove the deadline, sent %v", ttl)
+	}
+	if stop := calls[7].json(t).(map[string]any)["autoStopInterval"]; stop != float64(45) {
+		t.Fatalf("auto-stop body %v", stop)
 	}
 }
 

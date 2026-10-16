@@ -46,7 +46,7 @@ await mogenius.delete(sandbox);
 | ---------------------------------------- | ----------------------------------------------------------------------- |
 | [Getting started](getting-started.md)    | Install, create an API key, configure the client, run a first sandbox    |
 | [Concepts](concepts.md)                  | Profiles, warm pools, states, how a call reaches the pod                 |
-| [Sandboxes](sandboxes.md)                | Create, warm pools, find, list, start, stop, delete, labels, lifetime   |
+| [Sandboxes](sandboxes.md)                | Create, warm pools, find, list, start, stop, delete, labels, lifetime, auto-stop |
 | [Commands and code](commands.md)         | `executeCommand`, `codeRun` with charts, live output streams            |
 | [Sessions](sessions.md)                  | Stateful shells, background commands, live logs, stdin                  |
 | [Files](files.md)                        | Upload, download, list, move, permissions, search, replace              |

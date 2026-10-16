@@ -102,6 +102,18 @@ export class Sandbox {
   get createdBy(): string | null {
     return this.info.createdBy;
   }
+  /** Minutes without a toolbox call after which the sandbox stops; 0 never. */
+  get autoStopInterval(): number {
+    return this.info.autoStopInterval ?? 0;
+  }
+  /** mogenius: ISO timestamp of the last toolbox call the cluster saw; null before the first. */
+  get lastActivityAt(): string | null {
+    return this.info.lastActivityAt ?? null;
+  }
+  /** mogenius: the sandbox has a volume of its own; a stop keeps what lies on it. */
+  get persistent(): boolean {
+    return this.info.persistent ?? false;
+  }
   /** Everything the platform knows, as returned. */
   get data(): SandboxInfo {
     return this.info;
@@ -174,6 +186,21 @@ export class Sandbox {
     await this.setAutoDeleteInterval(minutes);
   }
 
+  /**
+   * Stops the sandbox after that many minutes without a toolbox call (exec, files, sessions, tunnels); the pod
+   * goes, the volume stays. 0 never.
+   */
+  async setAutostopInterval(minutes: number): Promise<void> {
+    this.info = await this.api.patch<SandboxInfo>(this.path(), {
+      autoStopInterval: Math.max(0, Math.floor(minutes)),
+    });
+  }
+
+  /** Counts as a toolbox call: the auto-stop interval starts again from now. */
+  async refreshActivity(): Promise<void> {
+    this.info = await this.api.post<SandboxInfo>(`${this.path()}/activity`, {});
+  }
+
   /** Home directory of the container user, asked from the running sandbox. */
   async getUserRootDir(): Promise<string> {
     return this.oneLine('printf %s "$HOME"');
@@ -203,13 +230,6 @@ export class Sandbox {
   /*******************************************************************************************************************
    * not available on Kubernetes sandboxes
    ******************************************************************************************************************/
-
-  /** Idle shutdown is not implemented yet (MOG-4697); the lifetime deadline is `setAutoDeleteInterval`. */
-  setAutostopInterval(_minutes: number): Promise<void> {
-    return Promise.reject(
-      new MogeniusUnsupportedError('Auto-stop on idle', 'Use setAutoDeleteInterval() for a fixed lifetime.'),
-    );
-  }
 
   setAutoArchiveInterval(_minutes: number): Promise<void> {
     return Promise.reject(

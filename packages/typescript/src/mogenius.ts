@@ -92,6 +92,9 @@ export class Mogenius {
       ...(params.autoDeleteInterval !== undefined && params.autoDeleteInterval > 0
         ? { ttlMinutes: Math.ceil(params.autoDeleteInterval) }
         : {}),
+      ...(params.autoStopInterval !== undefined && params.autoStopInterval > 0
+        ? { autoStopInterval: Math.ceil(params.autoStopInterval) }
+        : {}),
       ...(params.ephemeral !== undefined ? { ephemeral: params.ephemeral } : {}),
       waitForStart: timeout > 0,
       ...(timeout > 0 ? { waitTimeoutSeconds: Math.min(300, Math.ceil(timeout)) } : {}),

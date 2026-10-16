@@ -37,12 +37,14 @@ options: `WithAllNamespaces()`.
 | `waitUntilStopped(timeout = 60)`   | `WaitForStop(ctx, d)`                          | polls                                                   |
 | `setLabels(labels)`                | `SetLabels(ctx, labels)`                       | replaces your labels                                    |
 | `setAutoDeleteInterval(min)` · `setTtl(min)` | `SetAutoDeleteInterval(ctx, *min)`   | lifetime from now; 0 / nil removes it                   |
+| `setAutostopInterval(min)`         | `SetAutoStopInterval(ctx, *min)`               | [stop after idle minutes](sandboxes.md#auto-stop); 0 / nil never |
+| `refreshActivity()`                | `RefreshActivity(ctx)`                         | counts as a toolbox call                                |
 | `getUserRootDir()`                 | `GetUserHomeDir(ctx)`                          | home of the container user                              |
 | `getWorkDir()`                     | `GetWorkingDir(ctx)`                           | the container's working directory                       |
 | `tunnel(port, { localPort? })` *m* | `Tunnel(ctx, port, opts...)` *m*               | [`Tunnel`](tunnels.md)                                  |
 | `process`                          | `Process`                                      | [commands](commands.md) and [sessions](sessions.md)     |
 | `fs`                               | `FileSystem`                                   | [files](files.md)                                       |
-| `fork()`, `archive()`, `setAutostopInterval()`, `setAutoArchiveInterval()` | `ExperimentalFork`, `Archive`, `Pause`, `ExperimentalCreateSnapshot`, `SetAutoArchiveInterval` | `MogeniusUnsupportedError` |
+| `fork()`, `archive()`, `setAutoArchiveInterval()` | `ExperimentalFork`, `Archive`, `Pause`, `ExperimentalCreateSnapshot`, `SetAutoArchiveInterval` | `MogeniusUnsupportedError` |
 
 Fields: see [Sandboxes → Fields](sandboxes.md#fields).
 
