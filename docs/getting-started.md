@@ -7,7 +7,7 @@
 - An API key: **Organization → API keys** in the mogenius platform. Keys look like `mo_pat:…`. The key needs
   the *editor* role on the cluster (or the workspace) for anything that changes a sandbox; *viewer* keys can
   only read.
-- TypeScript: Node.js 22 or newer (global `fetch` and `WebSocket`). Go: Go 1.25 or newer.
+- TypeScript: Node.js 24 or newer (global `fetch` and `WebSocket`). Go: Go 1.25 or newer.
 
 ## Install
 

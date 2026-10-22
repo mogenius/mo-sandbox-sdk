@@ -70,9 +70,10 @@ sandbox, err = client.Create(ctx, types.SnapshotParams{
 	Snapshot: "python-data",
 })
 
-// from your own image
+// from your own image, keeping pod and storage: Ephemeral nil is the default (true), a pointer to false is sent
+keep := false
 sandbox, err = client.Create(ctx, types.ImageParams{
-	SandboxBaseParams: types.SandboxBaseParams{EnvVars: map[string]string{"MODE": "test"}},
+	SandboxBaseParams: types.SandboxBaseParams{EnvVars: map[string]string{"MODE": "test"}, Ephemeral: &keep},
 	Image:             "python:3.13-slim",
 }, options.WithTimeout(2*time.Minute))
 
@@ -173,6 +174,13 @@ const stopped = await mogenius.list(undefined, {}, 'stopped');
 ```go
 sandbox, err := client.Get(ctx, "report-42")
 
+// first match by labels (and states); *sdkerrors.MogeniusNotFoundError when nothing matches
+mine, err := client.FindOne(ctx, &mogenius.SandboxFilter{
+	Labels: map[string]string{"user": "jane"},
+	States: []mogenius.SandboxState{mogenius.SandboxStateStarted},
+})
+byID, err := client.FindOne(ctx, &mogenius.SandboxFilter{ID: "report-42"})
+
 // iterator: fetches pages as needed
 it := client.List(ctx, &mogenius.ListSandboxesQuery{
 	Labels: map[string]string{"project": "reports"},
@@ -195,6 +203,10 @@ for sandbox, err := range client.ListSeq(ctx, nil) {
 ```
 
 </details>
+
+`findOne` / `FindOne` with an id is `get`: labels and state are then not looked at. Without a match it fails with
+`MogeniusNotFoundError` and the error code `SANDBOX_NOT_FOUND`. An empty `list` page (`items: []`, no `nextCursor`)
+is not an error.
 
 ## Fields
 
@@ -225,6 +237,32 @@ for sandbox, err := range client.ListSeq(ctx, nil) {
 
 > [!NOTE]
 > Fields reflect the last call. Reload them with `refreshData()` / `RefreshData(ctx)`.
+
+<details open>
+<summary><b>TypeScript</b></summary>
+
+```ts
+const sandbox = await mogenius.create({}, { timeout: 0 }); // returns before it has started
+await sandbox.refreshData();
+console.log(sandbox.state, sandbox.podName, sandbox.errorReason); // e.g. 'starting', null while there is no pod
+```
+
+</details>
+
+<details>
+<summary><b>Go</b></summary>
+
+```go
+if err := sandbox.RefreshData(ctx); err != nil {
+	return err
+}
+fmt.Println(sandbox.State)
+if sandbox.ErrorReason != nil {
+	fmt.Println(*sandbox.ErrorReason)
+}
+```
+
+</details>
 
 ## Start, stop, delete
 
@@ -260,6 +298,11 @@ err = sandbox.WaitForStart(ctx, time.Minute)
 err = sandbox.WaitForStop(ctx, time.Minute)
 err = sandbox.Delete(ctx)
 err = sandbox.DeleteWithTimeout(ctx, 30*time.Second)
+
+// the same through the client
+err = client.Stop(ctx, sandbox)
+err = client.Start(ctx, sandbox)
+err = client.Delete(ctx, sandbox)
 ```
 
 </details>

@@ -116,6 +116,70 @@ describe('Sandbox.tunnel', () => {
     expect(received).toBe('bye');
   });
 
+  it('createConnection reaches the port without the local listener', async () => {
+    const { tunnel, socket } = await openTunnel();
+
+    const connection = tunnel.createConnection();
+    await until(() => sent(socket).includes('PFM:O:c1'), 'PFM:O:c1');
+    connection.write('ping');
+    await until(() => sent(socket).some((data) => data instanceof Uint8Array), 'a data frame');
+    const data = sent(socket).find((item) => item instanceof Uint8Array) as Uint8Array;
+    expect(Buffer.from(data).toString()).toBe('\x02c1ping');
+
+    const received = new Promise<string>((resolve) =>
+      connection.once('data', (chunk: Buffer) => resolve(chunk.toString())),
+    );
+    socket.frame(frame('c1', 'pong'));
+    expect(await received).toBe('pong');
+
+    // ending our side ends the connection, as with a TCP socket
+    connection.end();
+    await until(() => sent(socket).includes('PFM:C:c1'), 'PFM:C:c1');
+
+    // the pod closing it ends the caller's side after what it sent
+    const second = tunnel.createConnection();
+    await until(() => sent(socket).includes('PFM:O:c2'), 'PFM:O:c2');
+    let rest = '';
+    second.on('data', (chunk: Buffer) => (rest += chunk.toString()));
+    const closed = new Promise<void>((resolve) => second.once('close', () => resolve()));
+    socket.frame(frame('c2', 'bye'));
+    socket.frame('PFM:C:c2');
+    await closed;
+    expect(rest).toBe('bye');
+
+    // destroying it tells the gateway too
+    tunnel.createConnection().destroy();
+    await until(() => sent(socket).includes('PFM:C:c3'), 'PFM:C:c3');
+
+    await tunnel.close();
+    expect(() => tunnel.createConnection()).toThrow(/closed/);
+  });
+
+  it('createConnection works for an HTTP request', async () => {
+    const { request } = await import('node:http');
+    const { tunnel, socket } = await openTunnel();
+    const answered = new Promise<string>((resolve, reject) => {
+      const req = request(
+        { host: 'sandbox', path: '/health', createConnection: () => tunnel.createConnection() },
+        (res) => {
+          let body = '';
+          res.on('data', (chunk) => (body += chunk));
+          res.on('end', () => resolve(`${res.statusCode} ${body}`));
+        },
+      );
+      req.on('error', reject);
+      req.end();
+    });
+    await until(
+      () =>
+        sent(socket).some((data) => data instanceof Uint8Array && Buffer.from(data).toString().includes('GET /health')),
+      'the request',
+    );
+    socket.frame(frame('c1', 'HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok'));
+    socket.frame('PFM:C:c1');
+    expect(await answered).toBe('200 ok');
+  });
+
   it('says why it cannot open', async () => {
     const cases: [(socket: FakeWebSocket) => void, new (...args: never[]) => Error, RegExp][] = [
       [(socket) => socket.end(1008, 'POD_DOES_NOT_EXIST'), MogeniusNotFoundError, /does not exist/],

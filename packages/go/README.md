@@ -62,21 +62,27 @@ sandbox, err = client.Create(ctx, types.ImageParams{Image: "python:3.12-slim"}, 
 ```
 
 `Create` waits until the sandbox is started (`options.WithWaitForStart(false)` returns right away).
-`AutoDeleteInterval` is the lifetime in minutes from now; pod and storage go with the sandbox.
+`AutoDeleteInterval` is the lifetime in minutes from now; pod and storage go with the sandbox (`Ephemeral`: nil is
+the default `true`, a pointer to `false` is sent as such). `AutoStopInterval` stops the sandbox after that many minutes without a toolbox call (commands, files,
+sessions, tunnels); the volume stays and `Start` brings it back.
 
 | Call                                                    | Does                                               |
 | ------------------------------------------------------- | -------------------------------------------------- |
 | `client.Get(ctx, id)`                                    | one sandbox by claim or sandbox name               |
+| `client.FindOne(ctx, &mogenius.SandboxFilter{…})`       | the first match by id, or by labels and states     |
 | `client.List(ctx, query)` / `client.ListSeq(ctx, query)` | all sandboxes, paged, by labels and states        |
 | `client.WarmPools(ctx, options.WithAllNamespaces()?)`   | warm pools of the namespace, or of all (mogenius)  |
 | `sandbox.Start` / `Stop` / `Delete` (`…WithTimeout`)    | lifecycle; stopping keeps the volume               |
+| `client.Start` / `Stop` / `Delete(ctx, sandbox)`         | the same through the client                        |
 | `sandbox.WaitForStart` / `WaitForStop`                  | poll until the state is reached                    |
 | `sandbox.SetLabels`, `sandbox.SetAutoDeleteInterval`    | labels; lifetime in minutes from now, nil removes it |
+| `sandbox.SetAutoStopInterval`, `sandbox.RefreshActivity` | idle minutes until it stops, nil never; count as a call |
 | `sandbox.RefreshData`                                    | reload the fields                                  |
 | `sandbox.GetUserHomeDir`, `sandbox.GetWorkingDir`       | asked from the running sandbox                     |
 
 mogenius fields on `Sandbox`: `Namespace`, `Image`, `PodName`, `ContainerName`, `ServiceFQDN` (the address inside
-the cluster), `SandboxName`, `OperatingMode`, `CreatedBy`, `ExpiresAt`, `Ephemeral`, `Kind`.
+the cluster), `SandboxName`, `OperatingMode`, `CreatedBy`, `ExpiresAt`, `Ephemeral`, `Kind`, `AutoStopInterval`,
+`LastActivityAt`, `Persistent`.
 
 ## Commands and code
 
@@ -167,6 +173,13 @@ gone the tunnel ends, and `Done()` and `Err()` say so.
 err := sandbox.FileSystem.UploadFile(ctx, []byte("print(1)"), "/workspace/main.py") // or a local path as string
 data, err := sandbox.FileSystem.DownloadFile(ctx, "/workspace/out.csv", nil)          // or &localPath
 files, err := sandbox.FileSystem.ListFiles(ctx, "/workspace")
+
+// several at once: each file reports on its own, one failure does not stop the others
+results, err := sandbox.FileSystem.UploadFiles(ctx, []types.FileUpload{
+	{Source: []byte("A=1"), Destination: "config/.env"},
+	{Source: "./model.bin", Destination: "/tmp/model.bin"},
+})
+downloads := sandbox.FileSystem.DownloadFiles(ctx, []string{"a.txt", "b.txt"}) // each with Data or Error
 ```
 
 `ListFiles`, `GetFileInfo`, `CreateFolder`, `DeleteFile`, `MoveFiles`, `SetFilePermissions`, `SearchFiles`,
@@ -221,4 +234,5 @@ set -a; . ../../.env; set +a
 go run ./examples/basic
 go run ./examples/stream
 go run ./examples/tunnel
+go run ./examples/files
 ```

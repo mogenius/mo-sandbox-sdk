@@ -26,7 +26,7 @@ export function resolveConfig(config: MogeniusConfig = {}): ResolvedConfig {
   const apiUrl = (config.apiUrl ?? env('MOGENIUS_API_URL') ?? DEFAULT_API_URL).replace(/\/+$/, '');
   const fetchImpl = config.fetch ?? globalThis.fetch;
   if (typeof fetchImpl !== 'function') {
-    throw new MogeniusError('No fetch available: use Node 20+ or pass `fetch` in the config.');
+    throw new MogeniusError('No fetch available: use Node 24+ or pass `fetch` in the config.');
   }
   return {
     apiKey,
@@ -38,7 +38,7 @@ export function resolveConfig(config: MogeniusConfig = {}): ResolvedConfig {
     profile: config.profile ?? env('MOGENIUS_SANDBOX_PROFILE') ?? DEFAULT_PROFILE,
     workspaceName: config.workspaceName ?? env('MOGENIUS_WORKSPACE_NAME'),
     fetch: fetchImpl,
-    // only needed for streams, so its absence (Node 20) is reported there
+    // only needed for streams, so its absence is reported there
     webSocket: config.webSocket ?? globalThis.WebSocket,
   };
 }

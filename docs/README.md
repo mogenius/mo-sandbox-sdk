@@ -15,7 +15,7 @@
 <p align="center">
   <a href="../packages/typescript"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-%40mogenius%2Fsandbox-3178C6?logo=typescript&logoColor=white"></a>
   <a href="../packages/go"><img alt="Go" src="https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white"></a>
-  <img alt="Node" src="https://img.shields.io/badge/Node-22%2B-5FA04E?logo=nodedotjs&logoColor=white">
+  <img alt="Node" src="https://img.shields.io/badge/Node-24%2B-5FA04E?logo=nodedotjs&logoColor=white">
   <img alt="Kubernetes" src="https://img.shields.io/badge/runs%20on-Kubernetes-326CE5?logo=kubernetes&logoColor=white">
   <a href="../LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
 </p>
@@ -48,9 +48,9 @@ await mogenius.delete(sandbox);
 | [Concepts](concepts.md)                  | Profiles, warm pools, states, how a call reaches the pod                 |
 | [Sandboxes](sandboxes.md)                | Create, warm pools, find, list, start, stop, delete, labels, lifetime, auto-stop |
 | [Commands and code](commands.md)         | `executeCommand`, `codeRun` with charts, live output streams            |
-| [Sessions](sessions.md)                  | Stateful shells, background commands, live logs, stdin                  |
-| [Files](files.md)                        | Upload, download, list, move, permissions, search, replace              |
-| [Tunnels](tunnels.md)                    | Reach an HTTP server, WebSocket, gRPC or database inside the sandbox    |
+| [Sessions](sessions.md)                  | Stateful shells, list and look up sessions, background commands, live logs, stdin |
+| [Files](files.md)                        | Upload and download one or many, streams with progress, list, move, permissions, search, replace |
+| [Tunnels](tunnels.md)                    | Reach an HTTP server, WebSocket, gRPC or database inside the sandbox, also in-process |
 | [Errors](errors.md)                      | The error hierarchy and how to branch on it                             |
 | [Recipes](recipes.md)                    | End-to-end examples: agents, test runs, web previews, data analysis     |
 | [API reference](api-reference.md)        | Every function of both SDKs on one page                                 |
@@ -72,8 +72,11 @@ Both SDKs offer the same features. The examples in these guides show TypeScript 
 | [`examples/stream.ts`](../examples/stream.ts)            | live output, exit codes, timeouts, stopping early       |
 | [`examples/sessions.ts`](../examples/sessions.ts)        | sessions, background commands, live logs, stdin         |
 | [`examples/fs.ts`](../examples/fs.ts)                    | every file operation, including permission checks       |
+| [`examples/lifecycle.ts`](../examples/lifecycle.ts)      | warm pools, labels, lifetime, auto-stop, find, list, stop, start |
+| [`examples/tunnel.ts`](../examples/tunnel.ts)            | a web server in the sandbox, via the local port and in-process |
 | [`packages/go/examples/basic`](../packages/go/examples/basic)   | the basics in Go                                 |
 | [`packages/go/examples/stream`](../packages/go/examples/stream) | live output in Go                                |
+| [`packages/go/examples/files`](../packages/go/examples/files)   | the file calls in Go, incl. several at once and streams |
 | [`packages/go/examples/tunnel`](../packages/go/examples/tunnel) | a web server in the sandbox, reached via tunnel  |
 | [`packages/go/examples/chat`](../packages/go/examples/chat)     | a long conversation with Claude Code in a sandbox |
 

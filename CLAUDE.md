@@ -40,9 +40,13 @@ cd packages/go && go test ./... && go vet ./... && gofmt -l .
   reason and the alternative; never silently degrade.
 - **Tests mock `fetch`** (`test/helpers.ts`), never the classes. Cover the request shape and the error
   mapping for every new call. Go: the same against an `httptest` platform (`pkg/mogenius/helpers_test.go`).
-- **Both SDKs move together.** A new route or call lands in TypeScript and Go; Go mirrors the TypeScript
-  behaviour with Go's established shapes (functional options, `context.Context` first, `map[string]any` where
-  agent frameworks return maps).
+- **Every language SDK has every feature.** A new route or call lands in all SDKs under `packages/` (today
+  TypeScript and Go) in the same change; a feature is not done while one language lacks it. Never ship a
+  language-exclusive feature — upstream agent-sandbox does (memory snapshots are Python-only there), we do not.
+  A newly added language reaches parity with the others before its first release. Each language mirrors the
+  TypeScript behaviour with its own established shapes (Go: functional options, `context.Context` first,
+  `map[string]any` where agent frameworks return maps). Gap today: there is no Python SDK, although agent
+  frameworks and upstream agent-sandbox are Python-first.
 - **A new call is documented in the guides, not only in the tables.** Besides `docs/api-reference.md`, both
   READMEs and the route table below, it gets a section in the matching guide under `docs/` (TypeScript example
   open, Go example in a collapsed `<details>`, a field table, what an empty or missing result means), a link from
@@ -58,7 +62,7 @@ cd packages/go && go test ./... && go vet ./... && gofmt -l .
 | SDK                                   | Route                                                     |
 | ------------------------------------- | --------------------------------------------------------- |
 | `create()`                            | `POST /sandbox/:namespace`                                |
-| `list()`, `findOne()`                 | `GET /sandbox/:namespace?labels&state&limit&cursor`       |
+| `list()`, `findOne()` / `FindOne()`   | `GET /sandbox/:namespace?labels&state&limit&cursor` (`findOne` with an id: `get()`) |
 | `get()`, `refreshData()`              | `GET /sandbox/:namespace/:id`                             |
 | `setLabels()`, `setAutoDeleteInterval()`, `setAutostopInterval()` | `PATCH /sandbox/:namespace/:id`       |
 | `refreshActivity()`                   | `POST /sandbox/:namespace/:id/activity`                   |
@@ -68,14 +72,14 @@ cd packages/go && go test ./... && go vet ./... && gofmt -l .
 | `process.executeCommand()`, `codeRun()` | pod route, not a sandbox route: `POST /resource/exec/:namespace/:podName` (`podName` from the sandbox data, refreshed once when still null; `container` in the body, the sandbox's by default; the stream takes it as query) |
 | `process.executeCommandStream()`      | stream gateway `/xterm-stream?type=CLUSTER__POD_EXEC&cmd=exec&namespace&podName&container&binary=1`; on the text frame `SEND_EXEC_REQUEST` the client sends one text frame with the `K8sPodExecRequestDto` JSON (never in the URL: Cloudflare blocks shell syntax there, base64 too). Then binary frames tag 0 stdout / 1 stderr; text `EXIT:<code>`, `TRUNCATED`, `TIMEOUT`, `ERROR:<msg>` |
 | `fs.listFiles()`, `fs.getFileDetails()` | pod routes: `GET /resource/files/:namespace/:podName` · `…/info`; every file route takes `?container=` (the sandbox's) |
-| `fs.downloadFile()`, `fs.downloadFileStream()` | `POST …/download-link` → `GET <one-time url>` |
-| `fs.uploadFile(s)()`                  | `POST …/upload`                                           |
+| `fs.downloadFile()`, `fs.downloadFiles()`, `fs.downloadFileStream()` | `POST …/download-link` → `GET <one-time url>`, one link per file |
+| `fs.uploadFile(s)()`, `fs.uploadFileStream()` | `POST …/upload` (multipart; `uploadFiles` names each part after its destination and sends no `path`; the stream is sent chunked, `duplex: 'half'` in TS) |
 | `fs.createFolder()`, `fs.moveFiles()`, `fs.deleteFile()` | `POST …/folder` · `POST …/move` · `DELETE /resource/files/:namespace/:podName` |
 | `fs.setFilePermissions()`             | `POST …/permissions`                                      |
 | `fs.searchFiles()`, `fs.findFiles()`, `fs.replaceInFiles()` | `GET …/search` · `GET …/find` · `POST …/replace` |
 | `process.createSession()`, `listSessions()`, `getSession()`, `deleteSession()` | pod routes, not sandbox routes: `POST`/`GET /resource/session/:namespace/:podName` · `GET`/`DELETE …/:sessionId` (`podName` from the sandbox data; `container` defaults to the sandbox's; `env` exported into the shell) |
 | `process.executeSessionCommand()`      | `POST /resource/session/:namespace/:podName/:sessionId/exec` (`timeout` = wait of a synchronous call, the command runs on) |
 | `process.getSessionCommand()`, `getSessionCommandLogs()`, `sendSessionCommandInput()` | `GET …/:sessionId/command/:cmdId` · `GET …/command/:cmdId/logs` · `POST …/command/:cmdId/input`; live follow over the stream gateway `type=CLUSTER__POD_SESSION_LOG&cmd=session-log&namespace&podName&sessionId&cmdId` with the exec stream's frames |
-| `sandbox.tunnel()` / `Sandbox.Tunnel()` | stream gateway `/xterm-stream?type=PORT_FORWARD&cmd=port-forward&namespace&kind=Pod&workloadName=<pod>&remotePort` (no `binary`; mocli's port-forward protocol): wait for `PEER_IS_READY`, answer it; per TCP connection text `PFM:O:<id>` / `PFM:C:<id>`, bytes as binary `[id length][id][data]`; `BROWSER_PING` every 5 s. Not the HTTP tunnel API (`/resource/tunnel/session`): its proxy forwards the caller's `Authorization`/`Cookie` to the target |
+| `sandbox.tunnel()` / `Sandbox.Tunnel()`, `createConnection()` / `DialContext()` | stream gateway `/xterm-stream?type=PORT_FORWARD&cmd=port-forward&namespace&kind=Pod&workloadName=<pod>&remotePort` (no `binary`; mocli's port-forward protocol): wait for `PEER_IS_READY`, answer it; per TCP connection text `PFM:O:<id>` / `PFM:C:<id>`, bytes as binary `[id length][id][data]`; `BROWSER_PING` every 5 s. Not the HTTP tunnel API (`/resource/tunnel/session`): its proxy forwards the caller's `Authorization`/`Cookie` to the target |
 
 Headers: `authorization: Bearer <key>`, `organization-id`, `cluster-id`, optional `workspace-name`.

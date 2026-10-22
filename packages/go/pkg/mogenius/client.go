@@ -134,8 +134,8 @@ func (c *Client) Create(ctx context.Context, params any, opts ...func(*options.C
 	if base.AutoStopInterval != nil && *base.AutoStopInterval > 0 {
 		body["autoStopInterval"] = *base.AutoStopInterval
 	}
-	if base.Ephemeral {
-		body["ephemeral"] = true
+	if base.Ephemeral != nil {
+		body["ephemeral"] = *base.Ephemeral
 	}
 	wait := createOpts.WaitForStart && timeout > 0
 	body["waitForStart"] = wait
@@ -164,6 +164,60 @@ func (c *Client) Get(ctx context.Context, sandboxIDOrName string) (*Sandbox, err
 		return nil, err
 	}
 	return newSandbox(c.api, dto, types.CodeLanguagePython), nil
+}
+
+// SandboxFilter picks the sandbox of FindOne.
+type SandboxFilter struct {
+	// ID finds the sandbox by id; Labels and States are then not looked at.
+	ID string
+	// Labels a sandbox must all carry.
+	Labels map[string]string
+	// States a sandbox must be in, any of them.
+	States []SandboxState
+}
+
+// FindOne returns the first sandbox matching the filter (nil for any): by ID
+// when given, else by labels and states. When none matches, the error is a
+// *sdkerrors.MogeniusNotFoundError with ErrorCode SANDBOX_NOT_FOUND.
+func (c *Client) FindOne(ctx context.Context, filter *SandboxFilter) (*Sandbox, error) {
+	if filter == nil {
+		filter = &SandboxFilter{}
+	}
+	if filter.ID != "" {
+		return c.Get(ctx, filter.ID)
+	}
+	listQuery := &ListSandboxesQuery{Labels: filter.Labels, States: filter.States}
+	// several states are filtered here, so a page of one could come back empty
+	if len(filter.States) <= 1 {
+		limit := 1
+		listQuery.Limit = &limit
+	}
+	it := c.List(ctx, listQuery)
+	if it.Next() {
+		return it.Value(), nil
+	}
+	if err := it.Err(); err != nil {
+		return nil, err
+	}
+	notFound := sdkerrors.NewMogeniusNotFoundError(fmt.Sprintf("No sandbox with labels %v in states %v in namespace %q.",
+		filter.Labels, filter.States, c.namespace), nil)
+	notFound.ErrorCode = "SANDBOX_NOT_FOUND"
+	return nil, notFound
+}
+
+// Start starts a stopped sandbox and waits up to 60 s, like sandbox.Start.
+func (c *Client) Start(ctx context.Context, sandbox *Sandbox) error {
+	return sandbox.Start(ctx)
+}
+
+// Stop stops a running sandbox and waits up to 60 s, like sandbox.Stop; the volume stays.
+func (c *Client) Stop(ctx context.Context, sandbox *Sandbox) error {
+	return sandbox.Stop(ctx)
+}
+
+// Delete deletes a sandbox, like sandbox.Delete.
+func (c *Client) Delete(ctx context.Context, sandbox *Sandbox) error {
+	return sandbox.Delete(ctx)
 }
 
 // ListSandboxesQuery filters List.

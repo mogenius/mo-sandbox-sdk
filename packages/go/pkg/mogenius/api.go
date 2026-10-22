@@ -156,34 +156,52 @@ func transportError(ctx context.Context, method, path string, err error) error {
 	return sdkerrors.NewMogeniusError(fmt.Sprintf("%s %s failed: %v", method, path, err), 0, nil)
 }
 
-// formBody is a multipart body with a single file part, streamed: the part's
-// content is read only when the request is sent.
+// formBody is a multipart body of file parts, streamed: each part's content
+// is read only when the request is sent.
 type formBody struct {
 	reader      io.Reader
 	contentType string
-	// length is -1 when the content's size is unknown; the upload is then chunked.
+	// length is -1 when a content's size is unknown; the upload is then chunked.
 	length int64
 }
 
-func newFormBody(field, filename string, content io.Reader, size int64) (*formBody, error) {
+// formPart is one file of a formBody; size is -1 when unknown.
+type formPart struct {
+	field, filename string
+	content         io.Reader
+	size            int64
+}
+
+func newFormBody(parts ...formPart) (*formBody, error) {
 	var head bytes.Buffer
 	writer := multipart.NewWriter(&head)
-	if _, err := writer.CreateFormFile(field, filename); err != nil {
-		return nil, err
+	readers := make([]io.Reader, 0, 2*len(parts)+1)
+	length := int64(0)
+	for _, part := range parts {
+		// a part's header starts with the boundary that ends the part before it
+		if _, err := writer.CreateFormFile(part.field, part.filename); err != nil {
+			return nil, err
+		}
+		header := append([]byte(nil), head.Bytes()...)
+		head.Reset()
+		readers = append(readers, bytes.NewReader(header), part.content)
+		if length >= 0 && part.size >= 0 {
+			length += int64(len(header)) + part.size
+		} else {
+			length = -1
+		}
 	}
-	header := append([]byte(nil), head.Bytes()...)
-	head.Reset()
 	// closing the writer only writes the final boundary
 	if err := writer.Close(); err != nil {
 		return nil, err
 	}
 	footer := head.Bytes()
-	length := int64(-1)
-	if size >= 0 {
-		length = int64(len(header)) + size + int64(len(footer))
+	readers = append(readers, bytes.NewReader(footer))
+	if length >= 0 {
+		length += int64(len(footer))
 	}
 	return &formBody{
-		reader:      io.MultiReader(bytes.NewReader(header), content, bytes.NewReader(footer)),
+		reader:      io.MultiReader(readers...),
 		contentType: writer.FormDataContentType(),
 		length:      length,
 	}, nil

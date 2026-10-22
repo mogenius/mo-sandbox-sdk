@@ -10,6 +10,9 @@ export interface RecordedCall {
   body: unknown;
   /** The multipart form, when the request sent one. */
   form?: FormData;
+  /** The streamed body and its `duplex`, when the request sent one. */
+  stream?: ReadableStream<Uint8Array>;
+  duplex?: string;
 }
 
 /** A canned answer: status and JSON body, or `raw` bytes with a `contentType`. */
@@ -32,6 +35,8 @@ export function fakeFetch(...answers: Answer[]) {
       headers: Object.fromEntries(Object.entries((init?.headers as Record<string, string>) ?? {})),
       body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined,
       form: init?.body instanceof FormData ? init.body : undefined,
+      stream: init?.body instanceof ReadableStream ? init.body : undefined,
+      duplex: (init as { duplex?: string } | undefined)?.duplex,
     };
     calls.push(call);
     const next = queue.length > 1 ? queue.shift()! : queue[0];

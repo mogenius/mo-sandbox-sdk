@@ -76,6 +76,16 @@ export class ApiClient {
     return this.request<T>('POST', path, query, form);
   }
 
+  /** POST of a body read as it is sent, chunked: an upload too big to hold in memory. */
+  async postStream<T>(
+    path: string,
+    stream: ReadableStream<Uint8Array>,
+    contentType: string,
+    query?: Query,
+  ): Promise<T> {
+    return this.request<T>('POST', path, query, new StreamBody(stream, contentType));
+  }
+
   async patch<T>(path: string, body?: unknown): Promise<T> {
     return this.request<T>('PATCH', path, undefined, body);
   }
@@ -93,7 +103,7 @@ export class ApiClient {
   openStream(query: Query): WebSocket {
     const WebSocketImpl = this.config.webSocket;
     if (typeof WebSocketImpl !== 'function') {
-      throw new MogeniusError('No WebSocket available: use Node 22+ or pass `webSocket` in the config.');
+      throw new MogeniusError('No WebSocket available: use Node 24+ or pass `webSocket` in the config.');
     }
     if (!this.config.organizationId || !this.config.clusterId) {
       throw new MogeniusError(
@@ -133,7 +143,9 @@ export class ApiClient {
       headers['workspace-name'] = this.config.workspaceName;
     }
     // a FormData body sets its own multipart content type with the boundary
-    if (body !== undefined && !(body instanceof FormData)) {
+    if (body instanceof StreamBody) {
+      headers['content-type'] = body.contentType;
+    } else if (body !== undefined && !(body instanceof FormData)) {
       headers['content-type'] = 'application/json';
     }
     return headers;
@@ -160,6 +172,16 @@ export class ApiClient {
       }
     }
     try {
+      if (body instanceof StreamBody) {
+        // a stream as request body needs half duplex: the answer may come before the body is through
+        const init: RequestInit & { duplex: 'half' } = {
+          method,
+          headers: this.headers(body),
+          body: body.stream,
+          duplex: 'half',
+        };
+        return await this.config.fetch(url, init);
+      }
       return await this.config.fetch(url, {
         method,
         headers: this.headers(body),
@@ -169,6 +191,14 @@ export class ApiClient {
       throw new MogeniusError(`${method} ${url.pathname} failed: ${(err as Error).message}`, { source: 'sdk' });
     }
   }
+}
+
+/** A request body streamed with its own content type, e.g. a hand-built multipart body. */
+class StreamBody {
+  constructor(
+    readonly stream: ReadableStream<Uint8Array>,
+    readonly contentType: string,
+  ) {}
 }
 
 function parseJson(text: string): unknown {

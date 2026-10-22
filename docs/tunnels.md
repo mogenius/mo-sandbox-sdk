@@ -37,16 +37,27 @@ try {
 
 </details>
 
-`Tunnel` has `host` (`127.0.0.1`), `port`, `url`, `close()` and `done` — a promise that settles when the tunnel
-ends: with the error that ended it, or `undefined` after `close()`.
+`Tunnel` has `host` (`127.0.0.1`), `port`, `url`, `createConnection()`, `close()` and `done` — a promise that
+settles when the tunnel ends: with the error that ended it, or `undefined` after `close()`.
+
+`createConnection()` opens a connection to the sandbox's port inside your process, without the local port — for
+`http.request`, a WebSocket or a database client that takes a socket. It behaves like a TCP socket: ending or
+destroying one side ends the other. It throws while the tunnel is reconnecting and after it ended.
 
 <details open>
 <summary><b>TypeScript</b></summary>
 
 ```ts
+import { request } from 'node:http';
+
 tunnel.done.then((error) => {
   if (error) console.error('tunnel ended:', error.message);
 });
+
+// in-process, without the local port: the host is ignored
+request({ host: 'sandbox', path: '/index.html', createConnection: () => tunnel.createConnection() }, (res) => {
+  res.pipe(process.stdout);
+}).end();
 ```
 
 </details>

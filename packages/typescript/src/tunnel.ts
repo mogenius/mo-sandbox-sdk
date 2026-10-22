@@ -1,4 +1,5 @@
 import type { Server, Socket } from 'node:net';
+import type { Duplex, duplexPair } from 'node:stream';
 import type { ApiClient } from './api-client.js';
 import { MogeniusError, MogeniusForbiddenError, MogeniusNotFoundError, MogeniusTimeoutError } from './errors.js';
 import { streamCloseError } from './process.js';
@@ -60,7 +61,9 @@ class PortForwardTunnel implements Tunnel {
   private socket: WebSocket | undefined;
   /** A stream still waiting for the operator, so `close()` can abort it. */
   private connecting: WebSocket | undefined;
-  private readonly connections = new Map<string, Socket>();
+  private readonly connections = new Map<string, Duplex>();
+  /** `duplexPair` of node:stream, loaded with node:net in `start()`. */
+  private duplexPair: typeof duplexPair | undefined;
   private sequence = 0;
   private ended = false;
   private pingTimer: ReturnType<typeof setInterval> | undefined;
@@ -80,7 +83,8 @@ class PortForwardTunnel implements Tunnel {
   }
 
   async start(localPort: number): Promise<void> {
-    const net = await import('node:net');
+    const [net, stream] = await Promise.all([import('node:net'), import('node:stream')]);
+    this.duplexPair = stream.duplexPair;
     const socket = await this.connect();
     this.socket = socket;
     this.serve(socket);
@@ -103,6 +107,24 @@ class PortForwardTunnel implements Tunnel {
     this.port = (server.address() as { port: number }).port;
     this.pingTimer = setInterval(() => this.send(PING), PING_INTERVAL_MS);
     this.pingTimer.unref?.();
+  }
+
+  createConnection(): Duplex {
+    if (this.ended) {
+      throw new MogeniusError('The tunnel is closed.', { source: 'sdk' });
+    }
+    if (!this.socket || this.socket.readyState !== this.socket.OPEN || !this.duplexPair) {
+      throw new MogeniusError('The tunnel is reconnecting to the stream gateway; try again in a moment.', {
+        source: 'sdk',
+      });
+    }
+    // no half-open connections, as with a TCP socket: an end on one side ends the other
+    const [inside, outside] = this.duplexPair({ allowHalfOpen: false });
+    // a destroy does not cross the pair on its own
+    outside.on('close', () => inside.destroy());
+    inside.on('close', () => outside.destroy());
+    this.bridge(inside);
+    return outside;
   }
 
   async close(): Promise<void> {
@@ -246,8 +268,8 @@ class PortForwardTunnel implements Tunnel {
     );
   }
 
-  /** Announces a local connection to the gateway and pumps its bytes there. */
-  private bridge(local: Socket): void {
+  /** Announces a local connection (a TCP socket or one end of a pair) to the gateway and pumps its bytes there. */
+  private bridge(local: Duplex): void {
     const socket = this.socket;
     if (!socket || socket.readyState !== socket.OPEN) {
       local.destroy();
@@ -256,7 +278,7 @@ class PortForwardTunnel implements Tunnel {
     const id = `c${++this.sequence}`;
     const idBytes = encoder.encode(id);
     this.connections.set(id, local);
-    local.setNoDelay(true);
+    (local as Partial<Socket>).setNoDelay?.(true);
     socket.send(OPEN_PREFIX + id);
     local.on('data', (chunk: Buffer) => {
       const frame = new Uint8Array(1 + idBytes.length + chunk.length);

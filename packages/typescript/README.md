@@ -48,9 +48,21 @@ const everywhere = await mogenius.warmPools({ allNamespaces: true }); // pools m
 
 await sandbox.stop(); // pod goes, volume stays
 await sandbox.start(); // back with the same files
+await sandbox.refreshData(); // reload the fields: state, podName, expiresAt, …
 await sandbox.setLabels({ project: 'demo', stage: 'done' });
 await sandbox.setAutoDeleteInterval(30); // minutes from now; 0 removes the deadline
 await mogenius.delete(sandbox);
+```
+
+Auto-stop: a sandbox with `autoStopInterval` stops after that many minutes without a toolbox call (commands,
+files, sessions, tunnels) and keeps its volume; `start()` brings it back. `ephemeral` (default `true`): pod and
+storage go when the sandbox is deleted or its lifetime ends.
+
+```ts
+const idle = await mogenius.create({ autoStopInterval: 30 });
+await idle.setAutostopInterval(60); // change it; 0 turns it off
+await idle.refreshActivity(); // counts as a call: 60 minutes from now
+console.log(idle.autoStopInterval, idle.lastActivityAt, idle.persistent);
 ```
 
 ## Running code
@@ -80,7 +92,7 @@ for await (const event of sandbox.process.executeCommandStream('npm test', '/hom
 
 The stream goes through the platform's stream gateway (`MOGENIUS_STREAM_URL`, default
 `wss://k8s-cmd-stream.mogenius.com`) and needs `organizationId` and `clusterId` set, since the gateway does
-not take them from the key. Node 22+ (global `WebSocket`), or pass `webSocket` in the config.
+not take them from the key. The global `WebSocket` of Node 24+ is used, or pass `webSocket` in the config.
 
 ### Sessions
 
@@ -126,6 +138,8 @@ await sandbox.process.getSessionCommandLogs('agent', cmdId, (chunk) => process.s
 directory (`/home/coder/project` in the default image).
 
 ```ts
+import { createReadStream } from 'node:fs';
+
 await sandbox.fs.uploadFile(Buffer.from('print("hi")'), 'app.py');
 await sandbox.fs.uploadFiles([
   { source: 'A=1', destination: 'config/.env' },
@@ -135,7 +149,10 @@ await sandbox.fs.uploadFiles([
 const entries = await sandbox.fs.listFiles(); // FileInfo[]: name, isDir, size, modTime, mode, owner, group
 const info = await sandbox.fs.getFileDetails('app.py');
 const data = await sandbox.fs.downloadFile('app.py'); // Buffer; a folder comes as .tar.gz
-const stream = await sandbox.fs.downloadFileStream('big.bin'); // mogenius only: ReadableStream for large files
+const many = await sandbox.fs.downloadFiles(['a.txt', 'b.txt']); // { path, data?, error? }[], one failure each
+// mogenius only: streams for large files, resuming downloads, both with progress
+const stream = await sandbox.fs.downloadFileStream('big.bin', { onProgress: (p) => console.log(p.bytesReceived) });
+await sandbox.fs.uploadFileStream(createReadStream('./big.bin'), '/tmp/big.bin', { onProgress: (p) => console.log(p.bytesSent) });
 
 await sandbox.fs.createFolder('out', '755');
 await sandbox.fs.moveFiles('app.py', 'out/app.py');
@@ -150,7 +167,30 @@ await sandbox.fs.deleteFile('out', true); // recursive; a non-empty folder witho
 
 The operator runs each operation inside the sandbox's container, so nothing is installed in the image for
 it. Uploads are limited to 100 MB per file. `uploadFile` takes a Buffer or string, not a local path: read the
-file yourself first.
+file yourself first, or stream it with `uploadFileStream`.
+
+## Tunnels (mogenius only)
+
+A tunnel forwards TCP connections from a local port to a port inside the sandbox, like `kubectl port-forward`,
+through the stream gateway: HTTP, WebSockets, gRPC and databases pass, the cluster needs no ingress. It needs
+`organizationId` and `clusterId`, and Node (the local side is a TCP server).
+
+```ts
+import { request } from 'node:http';
+
+const tunnel = await sandbox.tunnel(8000); // a free local port; { localPort: 3000 } fixes one
+const response = await fetch(`${tunnel.url}/health`); // http://127.0.0.1:<port>
+
+// in-process, without the local port
+request({ host: 'sandbox', path: '/health', createConnection: () => tunnel.createConnection() }, (res) =>
+  res.pipe(process.stdout),
+).end();
+
+tunnel.done.then((error) => error && console.error('tunnel ended:', error.message));
+await tunnel.close();
+```
+
+When the gateway connection drops, the tunnel reconnects on its own; it ends when the pod is gone.
 
 ## Errors
 

@@ -113,6 +113,7 @@ func TestCreateFromASnapshot(t *testing.T) {
 	f := newFakePlatform(t, reply{status: 201, body: sandboxJSON(map[string]any{"labels": map[string]any{"project": "demo"}})})
 	interval := 30
 	idle := 20
+	ephemeral := true
 
 	sandbox, err := f.client(t).Create(context.Background(), types.SnapshotParams{
 		SandboxBaseParams: types.SandboxBaseParams{
@@ -120,7 +121,7 @@ func TestCreateFromASnapshot(t *testing.T) {
 			EnvVars:            map[string]string{"A": "1"},
 			AutoDeleteInterval: &interval,
 			AutoStopInterval:   &idle,
-			Ephemeral:          true,
+			Ephemeral:          &ephemeral,
 		},
 		Snapshot: "gpu",
 	})
@@ -171,8 +172,9 @@ func TestCreateFromASnapshot(t *testing.T) {
 func TestCreateFromAnImageWithoutWaiting(t *testing.T) {
 	f := newFakePlatform(t, reply{status: 201, body: sandboxJSON(map[string]any{"kind": "Sandbox", "state": "creating", "podName": nil})})
 
+	keep := false
 	sandbox, err := f.client(t).Create(context.Background(), &types.ImageParams{
-		SandboxBaseParams: types.SandboxBaseParams{Name: "mine"},
+		SandboxBaseParams: types.SandboxBaseParams{Name: "mine", Ephemeral: &keep},
 		Image:             "python:3.12-slim",
 		Snapshot:          "default",
 	}, options.WithWaitForStart(false))
@@ -180,7 +182,8 @@ func TestCreateFromAnImageWithoutWaiting(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := map[string]any{"name": "mine", "profile": "default", "image": "python:3.12-slim", "waitForStart": false}
+	// false is sent, not dropped as a zero value
+	want := map[string]any{"name": "mine", "profile": "default", "image": "python:3.12-slim", "ephemeral": false, "waitForStart": false}
 	if body := f.recorded()[0].json(t); !reflect.DeepEqual(body, want) {
 		t.Fatalf("body = %v, want %v", body, want)
 	}
@@ -342,4 +345,70 @@ func TestListStopsAtAnError(t *testing.T) {
 	if it.Next() || !errors.As(it.Err(), &forbidden) {
 		t.Fatalf("got %v", it.Err())
 	}
+}
+
+func TestFindOneByIDOrByLabels(t *testing.T) {
+	f := newFakePlatform(t,
+		reply{body: sandboxJSON(map[string]any{"id": "report-42"})},
+		reply{body: map[string]any{"items": []any{sandboxJSON(map[string]any{"id": "a"})}, "nextCursor": "c2", "totalCount": 2}},
+	)
+	client := f.client(t)
+	ctx := context.Background()
+
+	byID, err := client.FindOne(ctx, &SandboxFilter{ID: "report-42", Labels: map[string]string{"ignored": "yes"}})
+	if err != nil || byID.ID != "report-42" {
+		t.Fatalf("by id: %v %v", byID, err)
+	}
+	byLabels, err := client.FindOne(ctx, &SandboxFilter{Labels: map[string]string{"user": "jane"}, States: []SandboxState{SandboxStateStarted}})
+	if err != nil || byLabels.ID != "a" {
+		t.Fatalf("by labels: %v %v", byLabels, err)
+	}
+
+	calls := f.recorded()
+	expectCall(t, calls[0], http.MethodGet, "/sandbox/agent-sandbox/report-42")
+	expectCall(t, calls[1], http.MethodGet, "/sandbox/agent-sandbox")
+	if q := calls[1].query; q.Get("labels") != "user=jane" || q.Get("state") != "started" || q.Get("limit") != "1" {
+		t.Fatalf("query %v", q)
+	}
+	// the first match is enough: no second page
+	if len(calls) != 2 {
+		t.Fatalf("%d calls", len(calls))
+	}
+}
+
+func TestFindOneWithoutAMatch(t *testing.T) {
+	f := newFakePlatform(t, reply{body: map[string]any{"items": []any{}, "nextCursor": nil, "totalCount": 0}})
+
+	_, err := f.client(t).FindOne(context.Background(), &SandboxFilter{Labels: map[string]string{"user": "nobody"}})
+
+	var notFound *sdkerrors.MogeniusNotFoundError
+	if !errors.As(err, &notFound) || notFound.ErrorCode != "SANDBOX_NOT_FOUND" || notFound.Source != sdkerrors.SourceSDK {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestClientStartStopDeleteAddressTheSandbox(t *testing.T) {
+	f := newFakePlatform(t,
+		reply{body: sandboxJSON(nil)},
+		reply{body: sandboxJSON(map[string]any{"state": "stopped"})},
+		reply{body: sandboxJSON(map[string]any{"state": "destroying"})},
+	)
+	client := f.client(t)
+	sandbox := f.sandbox(t, map[string]any{"state": "stopped"})
+	ctx := context.Background()
+
+	if err := client.Start(ctx, sandbox); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Stop(ctx, sandbox); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Delete(ctx, sandbox); err != nil {
+		t.Fatal(err)
+	}
+
+	calls := f.recorded()
+	expectCall(t, calls[0], http.MethodPost, "/sandbox/agent-sandbox/default-abc12/start")
+	expectCall(t, calls[1], http.MethodPost, "/sandbox/agent-sandbox/default-abc12/stop")
+	expectCall(t, calls[2], http.MethodDelete, "/sandbox/agent-sandbox/default-abc12")
 }

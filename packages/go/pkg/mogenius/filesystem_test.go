@@ -17,6 +17,7 @@ import (
 
 	sdkerrors "github.com/mogenius/mo-sandbox-sdk/packages/go/pkg/errors"
 	"github.com/mogenius/mo-sandbox-sdk/packages/go/pkg/options"
+	"github.com/mogenius/mo-sandbox-sdk/packages/go/pkg/types"
 )
 
 func fileJSON(name string) map[string]any {
@@ -290,5 +291,87 @@ func TestUploadFileStreamOfUnknownSize(t *testing.T) {
 	call := f.recorded()[0]
 	if _, _, content := uploadedPart(t, call); content != "chunk-1 chunk-2" || call.length != -1 || sent != 15 {
 		t.Fatalf("content %q, length %d, sent %d", content, call.length, sent)
+	}
+}
+
+func TestUploadFilesNamesEveryPartAfterItsDestination(t *testing.T) {
+	f := newFakePlatform(t, reply{status: 201, body: []any{
+		map[string]any{"path": "/w/a.txt", "success": true, "error": nil},
+		map[string]any{"path": "/w/sub/b.txt", "success": false, "error": "read-only file system"},
+	}})
+	local := filepath.Join(t.TempDir(), "b.txt")
+	if err := os.WriteFile(local, []byte("from disk"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := f.sandbox(t, nil).FileSystem.UploadFiles(context.Background(), []types.FileUpload{
+		{Source: []byte("A"), Destination: "/w/a.txt"},
+		{Source: local, Destination: "/w/sub/b.txt"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []types.UploadResult{{Path: "/w/a.txt", Success: true}, {Path: "/w/sub/b.txt", Error: "read-only file system"}}
+	if !reflect.DeepEqual(results, want) {
+		t.Fatalf("results %+v", results)
+	}
+	call := f.recorded()[0]
+	expectCall(t, call, http.MethodPost, "/resource/files/agent-sandbox/default-k27tp/upload")
+	if call.query.Has("path") || call.length != int64(len(call.body)) {
+		t.Fatalf("request %+v", call)
+	}
+	_, params, _ := mime.ParseMediaType(call.header.Get("Content-Type"))
+	reader := multipart.NewReader(bytes.NewReader(call.body), params["boundary"])
+	var parts []string
+	for {
+		part, err := reader.NextPart()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, _ := io.ReadAll(part)
+		parts = append(parts, part.FormName()+"|"+part.FileName()+"|"+string(data))
+	}
+	if !reflect.DeepEqual(parts, []string{"/w/a.txt|a.txt|A", "/w/sub/b.txt|b.txt|from disk"}) {
+		t.Fatalf("parts %q", parts)
+	}
+
+	var validation *sdkerrors.MogeniusValidationError
+	if _, err := f.sandbox(t, nil).FileSystem.UploadFiles(context.Background(), []types.FileUpload{{Source: 42, Destination: "/w/x"}}); !errors.As(err, &validation) {
+		t.Fatalf("source type: got %v", err)
+	}
+	if results, err := f.sandbox(t, nil).FileSystem.UploadFiles(context.Background(), nil); err != nil || len(results) != 0 {
+		t.Fatalf("no files: %v %v", results, err)
+	}
+}
+
+func TestDownloadFilesReportsEachFileOnItsOwn(t *testing.T) {
+	f := newFakePlatform(t)
+	f.answers = []any{http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/download-link") && r.URL.Query().Get("path") == "missing.txt":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = io.WriteString(w, `{"statusCode":404,"message":"no such file"}`)
+		case strings.HasSuffix(r.URL.Path, "/download-link"):
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"url":"`+f.server.URL+`/dl/`+r.URL.Query().Get("path")+`","expiresInSeconds":60}`)
+		default:
+			_, _ = io.WriteString(w, "content of "+strings.TrimPrefix(r.URL.Path, "/dl/"))
+		}
+	})}
+
+	results := f.sandbox(t, nil).FileSystem.DownloadFiles(context.Background(), []string{"a.txt", "missing.txt", "b.txt"})
+
+	if len(results) != 3 || results[0].Path != "a.txt" || string(results[0].Data) != "content of a.txt" ||
+		string(results[2].Data) != "content of b.txt" || results[0].Error != nil || results[2].Error != nil {
+		t.Fatalf("results %+v", results)
+	}
+	var notFound *sdkerrors.MogeniusNotFoundError
+	if results[1].Path != "missing.txt" || results[1].Data != nil || !errors.As(results[1].Error, &notFound) {
+		t.Fatalf("missing file %+v", results[1])
 	}
 }

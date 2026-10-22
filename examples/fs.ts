@@ -3,7 +3,7 @@
 //
 // Run with (reads .env):
 //   set -a; . ./.env; set +a; node examples/fs.ts   # Node 24 strips the types itself
-//   npx tsx examples/fs.ts                          # any Node >= 20, after the same `set -a; . ./.env`
+//   npx tsx examples/fs.ts                          # the same with tsx, after the same `set -a; . ./.env`
 // `node --env-file=.env` also works, but it does NOT override a MOGENIUS_* variable that is
 // already exported in the shell — an old key there wins and the platform answers 401.
 //

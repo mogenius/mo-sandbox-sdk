@@ -11,16 +11,17 @@ every package.
 | `new Mogenius(config?)`                             | `mogenius.NewClient()` · `NewClientWithConfig(&cfg)`   | client; config falls back to `MOGENIUS_*`            |
 | `create(params?, { timeout? })`                     | `Create(ctx, params, opts...)`                        | `Sandbox`, started unless told not to wait           |
 | `get(id, language?)`                                | `Get(ctx, id)`                                        | `Sandbox`                                            |
-| `findOne({ id?, labels?, state? })`                 | —                                                     | first match, or `MogeniusNotFoundError`              |
+| `findOne({ id?, labels?, state? })`                 | `FindOne(ctx, &SandboxFilter{ ID, Labels, States })`  | first match, or `MogeniusNotFoundError`              |
 | `list(labels?, { limit?, cursor? }, state?)`        | `List(ctx, query)` · `ListSeq(ctx, query)`            | page `{ items, nextCursor, total }` / iterator       |
 | `warmPools({ allNamespaces? })` *m*                 | `WarmPools(ctx, opts...)`                             | `WarmPool[]` of the namespace (or all), by namespace and name; none without agent-sandbox |
-| `start(sandbox, timeout?)`                          | —                                                     | `sandbox.start()`                                    |
-| `stop(sandbox, timeout?)`                           | —                                                     | `sandbox.stop()`                                     |
-| `delete(sandbox)`                                   | —                                                     | `sandbox.delete()`                                   |
+| `start(sandbox, timeout?)`                          | `Start(ctx, sandbox)`                                 | `sandbox.start()`                                    |
+| `stop(sandbox, timeout?)`                           | `Stop(ctx, sandbox)`                                  | `sandbox.stop()`                                     |
+| `delete(sandbox)`                                   | `Delete(ctx, sandbox)`                                | `sandbox.delete()`                                   |
 | —                                                   | `Close(ctx)`                                          | no-op, for `defer`                                   |
 | `snapshot`, `volume`                                | —                                                     | throw `MogeniusUnsupportedError`                     |
 
-Go iterator: `it.Next()`, `it.Value()`, `it.Err()`. Query: `ListSandboxesQuery{ Limit, Labels, States }`.
+Go iterator: `it.Next()`, `it.Value()`, `it.Err()`. Query: `ListSandboxesQuery{ Limit, Labels, States }`. Client
+`Start`, `Stop` and `Delete` wait like `sandbox.Start(ctx)`; for another wait use `sandbox.StartWithTimeout`.
 
 Go create options (`pkg/options`): `WithTimeout(d)`, `WithWaitForStart(bool)`, `WithLogChannel(ch)`. Warm pool
 options: `WithAllNamespaces()`.
@@ -84,11 +85,11 @@ Go options: `WithSessionContainer`, `WithSessionEnv` *m*.
 | `listFiles(path?)`                                | `ListFiles(ctx, path)`                              | `FileInfo[]`                          |
 | `getFileDetails(path)`                            | `GetFileInfo(ctx, path)`                            | `FileInfo`                            |
 | `uploadFile(data, path)`                          | `UploadFile(ctx, []byte \| localPath, path)`        | —                                     |
-| `uploadFiles([{ source, destination }])`          | —                                                   | `UploadResult[]`                      |
-| —                                                 | `UploadFileStream(ctx, reader, path, WithUploadProgress(fn))` | —                           |
+| `uploadFiles([{ source, destination }])`          | `UploadFiles(ctx, []types.FileUpload{ Source, Destination })` | `UploadResult[]` / `[]types.UploadResult` |
+| `uploadFileStream(source, path, { onProgress? })` *m* | `UploadFileStream(ctx, reader, path, WithUploadProgress(fn))` *m* | —                       |
 | `downloadFile(path)`                              | `DownloadFile(ctx, path, *localPath)`               | `Buffer` / `[]byte`                   |
-| `downloadFiles(paths)`                            | —                                                   | `{ path, data?, error? }[]`           |
-| `downloadFileStream(path)` *m*                    | `DownloadFileStream(ctx, path, WithDownloadProgress(fn))` | `ReadableStream` / `io.ReadCloser`, resumes |
+| `downloadFiles(paths)`                            | `DownloadFiles(ctx, paths)`                         | `{ path, data?, error? }[]` / `[]types.DownloadResult{ Path, Data, Error }` |
+| `downloadFileStream(path, { onProgress? })` *m*   | `DownloadFileStream(ctx, path, WithDownloadProgress(fn))` *m* | `ReadableStream` / `io.ReadCloser`, resumes |
 | `createFolder(path, mode?)`                       | `CreateFolder(ctx, path, WithMode(m))`              | —                                     |
 | `moveFiles(source, destination)`                  | `MoveFiles(ctx, source, destination)`               | —                                     |
 | `deleteFile(path, recursive = false)`             | `DeleteFile(ctx, path, recursive)`                  | —                                     |
@@ -96,6 +97,9 @@ Go options: `WithSessionContainer`, `WithSessionEnv` *m*.
 | `searchFiles(path, glob)`                         | `SearchFiles(ctx, path, glob)`                      | `{ files, truncated }`                |
 | `findFiles(path, pattern)`                        | `FindFiles(ctx, path, pattern)`                     | `{ file, line, content }[]`           |
 | `replaceInFiles(files, pattern, newValue)`        | `ReplaceInFiles(ctx, files, pattern, newValue)`     | `{ file, success, error }[]`          |
+
+Progress: `UploadProgress { bytesSent }` / `BytesSent`; `DownloadProgress { bytesReceived, totalBytes }` /
+`BytesReceived`, `TotalBytes` (0 when the size is not announced).
 
 ## Tunnel *m*
 
@@ -105,7 +109,7 @@ Go options: `WithSessionContainer`, `WithSessionEnv` *m*.
 | `url`           | `URL()`                         | `http://127.0.0.1:<port>`                       |
 | `done`          | `Done()`, `Err()`               | when and why it ended                           |
 | `close()`       | `Close()`                       | ends it and every connection                    |
-| —               | `DialContext(ctx, net, addr)`   | a connection without the local listener         |
+| `createConnection()` | `DialContext(ctx, net, addr)` | a connection without the local listener (`Duplex` / `net.Conn`) |
 
 Go option: `options.WithLocalPort(port)`.
 

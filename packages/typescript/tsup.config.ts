@@ -7,6 +7,6 @@ export default defineConfig({
   clean: true,
   sourcemap: true,
   treeshake: true,
-  target: 'node20',
+  target: 'node24',
   outDir: 'dist',
 });

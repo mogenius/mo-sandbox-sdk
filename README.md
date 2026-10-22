@@ -10,7 +10,7 @@
 <p align="center">
   <a href="packages/typescript"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-%40mogenius%2Fsandbox-3178C6?logo=typescript&logoColor=white"></a>
   <a href="packages/go"><img alt="Go" src="https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white"></a>
-  <img alt="Node" src="https://img.shields.io/badge/Node-22%2B-5FA04E?logo=nodedotjs&logoColor=white">
+  <img alt="Node" src="https://img.shields.io/badge/Node-24%2B-5FA04E?logo=nodedotjs&logoColor=white">
   <img alt="Kubernetes" src="https://img.shields.io/badge/runs%20on-Kubernetes-326CE5?logo=kubernetes&logoColor=white">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
 </p>
@@ -79,7 +79,7 @@ npm run lint
 cd packages/go && go test ./...   # the Go module
 ```
 
-Examples live in [`examples/`](examples); copy `.env.example` to `.env`, load it into the shell (`set -a; . ./.env; set +a`) and run them with `node examples/<name>.ts` (Node 24) or `npx tsx examples/<name>.ts`. `node --env-file=.env` works too, but it does not override a `MOGENIUS_*` variable that the shell already exports.
+Examples live in [`examples/`](examples); copy `.env.example` to `.env`, load it into the shell (`set -a; . ./.env; set +a`) and run them with `node examples/<name>.ts` (Node 24 strips the types itself) or `npx tsx examples/<name>.ts`. `node --env-file=.env` works too, but it does not override a `MOGENIUS_*` variable that the shell already exports.
 
 ## License
 

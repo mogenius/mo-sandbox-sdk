@@ -2,14 +2,18 @@ import type { ApiClient } from './api-client.js';
 import { MogeniusError } from './errors.js';
 import type {
   DownloadLink,
+  DownloadProgress,
   FileInfo,
   FileUpload,
   Match,
   ReplaceResult,
   SearchFilesResponse,
   SetFilePermissionsParams,
+  UploadProgress,
   UploadResult,
 } from './types.js';
+
+const encoder = new TextEncoder();
 
 /** What the platform answers for one file entry. */
 interface FileInfoBody {
@@ -66,11 +70,16 @@ export class FileSystem {
    * ends early, the stream asks the same link for the rest with a Range
    * request and carries on, up to five times with growing pauses. The bytes
    * the caller reads stay one uninterrupted, complete file.
+   *
+   * @param options `onProgress` hears how many bytes were read so far
    */
-  async downloadFileStream(path: string): Promise<ReadableStream<Uint8Array>> {
+  async downloadFileStream(
+    path: string,
+    options: { onProgress?: (progress: DownloadProgress) => void } = {},
+  ): Promise<ReadableStream<Uint8Array>> {
     const link = await this.api.post<DownloadLink>(await this.route('/download-link'), undefined, { path });
     const first = await this.api.fetchDownload(link.url);
-    return resumableStream(this.api, link.url, first, this.resumeDelaysMs);
+    return resumableStream(this.api, link.url, first, this.resumeDelaysMs, options.onProgress);
   }
 
   /** Pauses before each resume attempt; tests shorten them. */
@@ -85,6 +94,60 @@ export class FileSystem {
     const form = new FormData();
     form.append('file', toBlob(file), basename(path));
     const results = await this.api.postForm<UploadResult[]>(await this.route('/upload'), form, { path });
+    assertUploaded(results);
+  }
+
+  /**
+   * mogenius only: writes what `source` yields to `path` without holding it
+   * in memory — for files too big for a Buffer, e.g. `createReadStream(…)`
+   * or a `fetch` body. The upload is sent chunked, creating parent folders.
+   *
+   * @param options `onProgress` hears how many bytes were read from the source so far
+   */
+  async uploadFileStream(
+    source: ReadableStream<Uint8Array> | AsyncIterable<Uint8Array>,
+    path: string,
+    options: { onProgress?: (progress: UploadProgress) => void } = {},
+  ): Promise<void> {
+    const boundary = `----mogenius-${crypto.randomUUID()}`;
+    // the form encoding of a file name: quotes and line breaks percent-encoded
+    const filename = basename(path).replace(/"/g, '%22').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+    const head = encoder.encode(
+      `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\n` +
+        'Content-Type: application/octet-stream\r\n\r\n',
+    );
+    const tail = encoder.encode(`\r\n--${boundary}--\r\n`);
+    async function* parts(): AsyncGenerator<Uint8Array> {
+      yield head;
+      let sent = 0;
+      // a web stream is async iterable in Node
+      for await (const chunk of source as AsyncIterable<Uint8Array>) {
+        sent += chunk.byteLength;
+        options.onProgress?.({ bytesSent: sent });
+        yield chunk;
+      }
+      yield tail;
+    }
+    const iterator = parts();
+    const body = new ReadableStream<Uint8Array>({
+      async pull(controller): Promise<void> {
+        const next = await iterator.next();
+        if (next.done) {
+          controller.close();
+        } else {
+          controller.enqueue(next.value);
+        }
+      },
+      async cancel(): Promise<void> {
+        await iterator.return(undefined);
+      },
+    });
+    const results = await this.api.postStream<UploadResult[]>(
+      await this.route('/upload'),
+      body,
+      `multipart/form-data; boundary=${boundary}`,
+      { path },
+    );
     assertUploaded(results);
   }
 
@@ -219,6 +282,7 @@ function resumableStream(
   url: string,
   first: Response,
   delaysMs: readonly number[],
+  onProgress?: (progress: DownloadProgress) => void,
 ): ReadableStream<Uint8Array> {
   const total = Number(first.headers.get('content-length') ?? NaN);
   const etag = first.headers.get('etag') ?? undefined;
@@ -269,6 +333,7 @@ function resumableStream(
           return;
         }
         received += chunk.value.byteLength;
+        onProgress?.({ bytesReceived: received, totalBytes: Number.isFinite(total) ? total : 0 });
         controller.enqueue(chunk.value);
         return;
       }

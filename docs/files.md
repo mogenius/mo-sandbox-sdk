@@ -9,11 +9,11 @@ each operation inside the container — nothing is installed in the image for it
 | TypeScript                                   | Go                                                  | Does                                     |
 | -------------------------------------------- | --------------------------------------------------- | ---------------------------------------- |
 | `uploadFile(data, path)`                     | `UploadFile(ctx, source, path)`                     | write one file, creating parent folders  |
-| `uploadFiles([{ source, destination }])`     | —                                                   | several files in one request             |
-| —                                            | `UploadFileStream(ctx, reader, path, opts...)`      | upload without holding it in memory      |
+| `uploadFiles([{ source, destination }])`     | `UploadFiles(ctx, []types.FileUpload)`              | several files in one request             |
+| `uploadFileStream(source, path, { onProgress })` *m* | `UploadFileStream(ctx, reader, path, opts...)` | upload without holding it in memory  |
 | `downloadFile(path)`                         | `DownloadFile(ctx, path, localPath)`                | the file's bytes; a folder as `.tar.gz`  |
-| `downloadFiles(paths)`                       | —                                                   | several files; one failure does not stop the rest |
-| `downloadFileStream(path)`                   | `DownloadFileStream(ctx, path, opts...)`            | stream, resumes on its own               |
+| `downloadFiles(paths)`                       | `DownloadFiles(ctx, paths)`                         | several files; one failure does not stop the rest |
+| `downloadFileStream(path, { onProgress })` *m* | `DownloadFileStream(ctx, path, opts...)`          | stream, resumes on its own               |
 | `listFiles(path?)`                           | `ListFiles(ctx, path)`                              | entries directly below a folder          |
 | `getFileDetails(path)`                       | `GetFileInfo(ctx, path)`                            | one entry                                |
 | `createFolder(path, mode?)`                  | `CreateFolder(ctx, path, opts...)`                  | folder and its parents                   |
@@ -47,8 +47,29 @@ for (const r of results) if (!r.success) console.error(r.path, r.error);
 </details>
 
 > [!WARNING]
-> In TypeScript `uploadFile` takes **content, not a local path** — a string is written as text. Read the file
-> yourself first. Limit: 100 MB per file.
+> In TypeScript `uploadFile` and `uploadFiles` take **content, not a local path** — a string is written as text.
+> Read the file yourself first, or stream it with `uploadFileStream`. Limit: 100 MB per file.
+
+`uploadFileStream` (*mogenius addition*) sends what a stream yields without holding the file in memory — a
+`createReadStream`, a `fetch` body or any async iterable of bytes. The upload goes out chunked; `onProgress` hears
+how many bytes were read from the source so far.
+
+<details open>
+<summary><b>TypeScript</b></summary>
+
+```ts
+import { createReadStream } from 'node:fs';
+
+await sandbox.fs.uploadFileStream(createReadStream('./dataset.parquet'), '/tmp/dataset.parquet', {
+  onProgress: ({ bytesSent }) => console.log(bytesSent),
+});
+
+// straight from a download, never on disk
+const response = await fetch('https://example.com/model.bin');
+await sandbox.fs.uploadFileStream(response.body!, '/tmp/model.bin');
+```
+
+</details>
 
 <details>
 <summary><b>Go</b></summary>
@@ -57,12 +78,25 @@ for (const r of results) if (!r.success) console.error(r.path, r.error);
 err := sandbox.FileSystem.UploadFile(ctx, []byte("print(\"hello\")\n"), "app.py")
 err = sandbox.FileSystem.UploadFile(ctx, "./data.csv", "data/data.csv") // a string is a local path
 
+// several in one request: Source is []byte or a local path; each failure is reported, the others still land
+results, err := sandbox.FileSystem.UploadFiles(ctx, []types.FileUpload{
+	{Source: []byte("A=1\nB=2\n"), Destination: "config/.env"},
+	{Source: "./model.bin", Destination: "/tmp/model.bin"},
+})
+for _, r := range results {
+	if !r.Success {
+		log.Println(r.Path, r.Error)
+	}
+}
+
 // streamed: large or unknown size, with progress
 file, _ := os.Open("./dataset.parquet")
 defer file.Close()
 err = sandbox.FileSystem.UploadFileStream(ctx, file, "/tmp/dataset.parquet",
 	mogenius.WithUploadProgress(func(p mogenius.UploadProgress) { fmt.Println(p.BytesSent) }))
 ```
+
+In Go a `string` source is a **local path**, unlike in TypeScript.
 
 </details>
 
@@ -85,7 +119,9 @@ const many = await sandbox.fs.downloadFiles(['a.txt', 'b.txt', 'missing.txt']);
 for (const f of many) console.log(f.path, f.error ?? `${f.data!.length} bytes`);
 
 // large files: a stream, never held in memory as a whole
-const stream = await sandbox.fs.downloadFileStream('big.bin');
+const stream = await sandbox.fs.downloadFileStream('big.bin', {
+  onProgress: ({ bytesReceived, totalBytes }) => console.log(`${bytesReceived} / ${totalBytes}`),
+});
 await pipeline(Readable.fromWeb(stream as any), createWriteStream('./big.bin'));
 ```
 
@@ -93,13 +129,25 @@ await pipeline(Readable.fromWeb(stream as any), createWriteStream('./big.bin'));
 
 `downloadFileStream` (*mogenius addition*) resumes on its own: when the connection breaks, it asks for the rest
 with a Range request, up to five times with growing pauses. What you read stays one complete file; if the file
-changed in between, the stream fails instead of mixing versions.
+changed in between, the stream fails instead of mixing versions. `totalBytes` / `TotalBytes` is 0 when the platform
+does not announce the size.
+
+`downloadFiles` / `DownloadFiles` fetch several files side by side. Each entry has the `path` and either `data` or
+`error`; a missing file fails only its own entry. The results are in the order of the paths.
 
 <details>
 <summary><b>Go</b></summary>
 
 ```go
 data, err := sandbox.FileSystem.DownloadFile(ctx, "out/report.csv", nil)
+
+for _, f := range sandbox.FileSystem.DownloadFiles(ctx, []string{"a.txt", "b.txt", "missing.txt"}) {
+	if f.Error != nil {
+		log.Println(f.Path, f.Error)
+		continue
+	}
+	fmt.Println(f.Path, len(f.Data), "bytes")
+}
 
 local := "./report.csv"
 _, err = sandbox.FileSystem.DownloadFile(ctx, "out/report.csv", &local) // also writes it there

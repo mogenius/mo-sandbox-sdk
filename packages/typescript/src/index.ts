@@ -46,6 +46,8 @@ export type {
   FileInfo,
   FileUpload,
   UploadResult,
+  UploadProgress,
+  DownloadProgress,
   SearchFilesResponse,
   Match,
   ReplaceResult,

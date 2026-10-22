@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	sdkerrors "github.com/mogenius/mo-sandbox-sdk/packages/go/pkg/errors"
@@ -190,22 +191,67 @@ func (f *FileSystemService) ReplaceInFiles(ctx context.Context, files []string, 
 // UploadFile writes source to destination, creating parent folders. source
 // is []byte (the content) or string (the path of a local file).
 func (f *FileSystemService) UploadFile(ctx context.Context, source any, destination string) error {
+	content, size, closeSource, err := openUploadSource("UploadFile", source)
+	if err != nil {
+		return err
+	}
+	defer closeSource()
+	return f.upload(ctx, content, size, destination, nil)
+}
+
+// UploadFiles writes several files in one request, creating parent folders.
+// Each Source is []byte or the path of a local file. A file that fails is
+// reported in its result; the others still land.
+func (f *FileSystemService) UploadFiles(ctx context.Context, files []types.FileUpload) ([]types.UploadResult, error) {
+	if len(files) == 0 {
+		return []types.UploadResult{}, nil
+	}
+	parts := make([]formPart, len(files))
+	for i, file := range files {
+		content, size, closeSource, err := openUploadSource("UploadFiles", file.Source)
+		if err != nil {
+			return nil, err
+		}
+		defer closeSource()
+		// the part's field name is the destination: multipart parsers keep field names
+		// verbatim but reduce file names to their base name
+		parts[i] = formPart{field: file.Destination, filename: basename(file.Destination), content: content, size: size}
+	}
+	form, err := newFormBody(parts...)
+	if err != nil {
+		return nil, sdkerrors.NewMogeniusError("Failed to build the upload: "+err.Error(), 0, nil)
+	}
+	var bodies []uploadResult
+	if err := f.call(ctx, http.MethodPost, "/upload", nil, form, &bodies); err != nil {
+		return nil, err
+	}
+	results := make([]types.UploadResult, len(bodies))
+	for i, body := range bodies {
+		results[i] = types.UploadResult{Path: body.Path, Success: body.Success, Error: deref(body.Error)}
+	}
+	return results, nil
+}
+
+// openUploadSource opens what the uploads take: []byte (the content) or
+// string (the path of a local file). The caller calls the close func.
+func openUploadSource(call string, source any) (io.Reader, int64, func(), error) {
 	switch src := source.(type) {
 	case []byte:
-		return f.upload(ctx, bytes.NewReader(src), int64(len(src)), destination, nil)
+		return bytes.NewReader(src), int64(len(src)), func() {}, nil
 	case string:
 		file, err := os.Open(src)
 		if err != nil {
-			return sdkerrors.NewMogeniusError(fmt.Sprintf("Failed to read file: %v", err), 0, nil)
+			return nil, 0, nil, sdkerrors.NewMogeniusError(fmt.Sprintf("Failed to read file: %v", err), 0, nil)
 		}
-		defer file.Close()
 		stat, err := file.Stat()
 		if err != nil {
-			return sdkerrors.NewMogeniusError(fmt.Sprintf("Failed to read file: %v", err), 0, nil)
+			_ = file.Close()
+			return nil, 0, nil, sdkerrors.NewMogeniusError(fmt.Sprintf("Failed to read file: %v", err), 0, nil)
 		}
-		return f.upload(ctx, file, stat.Size(), destination, nil)
+		return file, stat.Size(), func() { _ = file.Close() }, nil
 	default:
-		return sdkerrors.NewMogeniusValidationError(fmt.Sprintf("UploadFile takes []byte or a local file path (string), not %T.", source), nil)
+		return nil, 0, nil, sdkerrors.NewMogeniusValidationError(
+			fmt.Sprintf("%s takes []byte or a local file path (string), not %T.", call, source), nil)
 	}
 }
 
@@ -254,7 +300,7 @@ func (f *FileSystemService) upload(ctx context.Context, content io.Reader, size 
 	if progress != nil {
 		content = &countingReader{reader: content, report: func(n int64) { progress(UploadProgress{BytesSent: n}) }}
 	}
-	form, err := newFormBody("file", basename(destination), content, size)
+	form, err := newFormBody(formPart{field: "file", filename: basename(destination), content: content, size: size})
 	if err != nil {
 		return sdkerrors.NewMogeniusError("Failed to build the upload: "+err.Error(), 0, nil)
 	}
@@ -294,6 +340,30 @@ func (f *FileSystemService) DownloadFile(ctx context.Context, remotePath string,
 		}
 	}
 	return data, nil
+}
+
+// DownloadFiles downloads several files at once; a failure for one does not
+// stop the others. The results are in the order of paths.
+func (f *FileSystemService) DownloadFiles(ctx context.Context, paths []string) []types.DownloadResult {
+	results := make([]types.DownloadResult, len(paths))
+	// the pod once, before the downloads run side by side: a handle without one reads the sandbox again
+	if _, _, err := f.sandbox.pod(ctx); err != nil {
+		for i, path := range paths {
+			results[i] = types.DownloadResult{Path: path, Error: err}
+		}
+		return results
+	}
+	var wg sync.WaitGroup
+	for i, path := range paths {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			data, err := f.DownloadFile(ctx, path, nil)
+			results[i] = types.DownloadResult{Path: path, Data: data, Error: err}
+		}()
+	}
+	wg.Wait()
+	return results
 }
 
 // DownloadStreamOption configures DownloadFileStream.

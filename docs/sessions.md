@@ -30,6 +30,48 @@ reports `truncated: true`.
 > [!NOTE]
 > Sessions are bound to the API key that opened them: another key neither sees nor uses them.
 
+Look up what is running — after a restart of your program, say:
+
+<details open>
+<summary><b>TypeScript</b></summary>
+
+```ts
+for (const session of await sandbox.process.listSessions()) {
+  console.log(session.sessionId, session.container, session.lastUsedAt, session.commands.length);
+}
+
+const session = await sandbox.process.getSession('build'); // MogeniusNotFoundError when it has ended
+const last = session.commands.at(-1);
+console.log(last?.command, last?.exitCode ?? 'still running');
+```
+
+</details>
+
+<details>
+<summary><b>Go</b></summary>
+
+```go
+sessions, err := sandbox.Process.ListSessions(ctx)
+for _, session := range sessions {
+	fmt.Println(session["sessionId"], session["container"], session["lastUsedAt"])
+}
+
+session, err := sandbox.Process.GetSession(ctx, "build")
+commands := session["commands"].([]map[string]any) // each with id, command and, once ended, exitCode
+```
+
+</details>
+
+| Field        | Meaning                                                    |
+| ------------ | ---------------------------------------------------------- |
+| `sessionId`  | the name given to `createSession`                          |
+| `commands`   | commands run so far, oldest first; `exitCode` once ended   |
+| `container`  | *m* the container the shell runs in                        |
+| `createdAt`, `lastUsedAt` | *m* ISO timestamps                            |
+
+`listSessions` is empty when your key has no session open in this sandbox; a session that ended (idle timeout,
+`exit`, a stop) is no longer listed and `getSession` answers `MogeniusNotFoundError`.
+
 ## State carries over
 
 <details open>

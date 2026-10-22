@@ -69,9 +69,9 @@ type SandboxBaseParams struct {
 	// AutoDeleteInterval is the sandbox's lifetime in minutes from its creation; nil or
 	// less than 1 means no deadline.
 	AutoDeleteInterval *int
-	// Ephemeral: pod and storage go when the lifetime ends or the sandbox is deleted. That is
-	// the platform's default, so false keeps it too.
-	Ephemeral bool
+	// Ephemeral: pod and storage go when the lifetime ends or the sandbox is deleted. nil is
+	// the platform's default (true); a pointer to false asks to keep them.
+	Ephemeral *bool
 }
 
 // SnapshotParams create a sandbox from a profile (snapshot): claimed from the
@@ -113,6 +113,29 @@ type FileInfo struct {
 	Group string
 	// mogenius: MimeType is the sniffed media type of a regular file; empty for folders.
 	MimeType string
+}
+
+// FileUpload is one file of UploadFiles.
+type FileUpload struct {
+	// Source is the content ([]byte) or the path of a local file (string).
+	Source any
+	// Destination is the path inside the container.
+	Destination string
+}
+
+// UploadResult is how one file of UploadFiles fared.
+type UploadResult struct {
+	Path    string
+	Success bool
+	// Error is why it failed; empty on success.
+	Error string
+}
+
+// DownloadResult is one file of DownloadFiles: its Data, or the Error that stopped it.
+type DownloadResult struct {
+	Path  string
+	Data  []byte
+	Error error
 }
 
 // CodeRunParams are the arguments and environment of a CodeRun.

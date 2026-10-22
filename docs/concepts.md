@@ -15,8 +15,10 @@ flowchart LR
   the Kubernetes exec API. Any image works.
 - **Your cluster, your rules.** Sandboxes run as pods in your own cluster; RBAC applies and every action is
   audited under the identity of the API key.
-- Plain calls (lifecycle, commands, files, sessions) go over HTTPS to the platform API. Live output and tunnels
-  go over a WebSocket to the stream gateway.
+- Plain calls ([lifecycle](sandboxes.md), [commands](commands.md), [files](files.md),
+  [sessions](sessions.md)) go over HTTPS to the platform API; large files stream there too
+  ([`uploadFileStream`, `downloadFileStream`](files.md)). Live output and [tunnels](tunnels.md), including
+  in-process connections (`createConnection` / `DialContext`), go over a WebSocket to the stream gateway.
 
 ## Sandboxes, profiles and warm pools
 

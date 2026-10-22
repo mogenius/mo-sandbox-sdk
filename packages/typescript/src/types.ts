@@ -4,6 +4,8 @@
  * after the import swap; mogenius-only fields are marked as such.
  */
 
+import type { Duplex } from 'node:stream';
+
 /** How the SDK reaches the platform. Every field falls back to an environment variable. */
 export interface MogeniusConfig {
   /** Personal access token or API key (`mo_pat:…`). Env: `MOGENIUS_API_KEY`. */
@@ -36,7 +38,7 @@ export interface MogeniusConfig {
   streamUrl?: string;
   /** Replaces the global `fetch`; for tests and custom agents. */
   fetch?: typeof fetch;
-  /** Replaces the global `WebSocket` (Node 22+); for tests and custom agents. */
+  /** Replaces the global `WebSocket`; for tests and custom agents. */
   webSocket?: typeof WebSocket;
 }
 
@@ -200,6 +202,13 @@ export interface Tunnel {
   readonly url: string;
   /** Settles when the tunnel has ended: with the error that ended it, or `undefined` after `close()`. */
   readonly done: Promise<Error | undefined>;
+  /**
+   * A connection to the sandbox's port without the local listener — for
+   * `http.request({ createConnection })`, a WebSocket or database client in
+   * the same process. It behaves like a TCP socket: ending one side ends the
+   * other. Throws while the tunnel is reconnecting or after it ended.
+   */
+  createConnection(): Duplex;
   /** Ends the tunnel and every connection through it. */
   close(): Promise<void>;
 }
@@ -343,6 +352,20 @@ export interface UploadResult {
   path: string;
   success: boolean;
   error: string | null;
+}
+
+/** mogenius only: how far `uploadFileStream()` got. */
+export interface UploadProgress {
+  /** Bytes read from the source so far. */
+  bytesSent: number;
+}
+
+/** mogenius only: how far `downloadFileStream()` got. */
+export interface DownloadProgress {
+  /** Bytes read so far. */
+  bytesReceived: number;
+  /** Size of the file; 0 when unknown. */
+  totalBytes: number;
 }
 
 /** Result of `searchFiles()`. */

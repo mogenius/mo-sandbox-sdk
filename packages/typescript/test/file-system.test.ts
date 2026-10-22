@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import { Mogenius, MogeniusError, MogeniusNotFoundError } from '../src/index.js';
 import { CONFIG, fakeFetch, sandboxInfo } from './helpers.js';
@@ -134,6 +135,62 @@ describe('FileSystem', () => {
     const stream = await sandbox.fs.downloadFileStream('notes.txt');
     expect(stream).toBeInstanceOf(ReadableStream);
     expect(await new Response(stream).text()).toBe('chunked');
+  });
+
+  it('uploadFileStream streams one multipart part, chunked, and reports progress', async () => {
+    const { fetch, calls } = fakeFetch(
+      { body: sandboxInfo() },
+      { status: 201, body: [{ path: '/w/big "1".bin', success: true, error: null }] },
+    );
+    const sandbox = await new Mogenius({ ...CONFIG, fetch }).get('default-abc12');
+    // a Node stream, as createReadStream gives one
+    const source = Readable.from([Buffer.from('chunk-1 '), Buffer.from('chunk-2')]);
+    const progress: number[] = [];
+
+    await sandbox.fs.uploadFileStream(source, '/w/big "1".bin', { onProgress: (p) => progress.push(p.bytesSent) });
+
+    const call = calls[1]!;
+    expect(call.method).toBe('POST');
+    expect(call.url.pathname).toBe('/resource/files/agent-sandbox/default-k27tp/upload');
+    expect(call.url.searchParams.get('path')).toBe('/w/big "1".bin');
+    expect(call.duplex).toBe('half');
+    const boundary = /^multipart\/form-data; boundary=(.+)$/.exec(call.headers['content-type']!)![1]!;
+    // a multipart parser reads the body back as one file part
+    const form = await new Response(call.stream, {
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+    }).formData();
+    const file = form.get('file') as File;
+    expect(file.name).toBe('big "1".bin');
+    expect(await file.text()).toBe('chunk-1 chunk-2');
+    expect(progress).toEqual([8, 15]);
+  });
+
+  it('uploadFileStream takes a web stream and surfaces a failed upload', async () => {
+    const { fetch, calls } = fakeFetch(
+      { body: sandboxInfo() },
+      { status: 201, body: [{ path: '/w/x', success: false, error: 'read-only file system' }] },
+    );
+    const sandbox = await new Mogenius({ ...CONFIG, fetch }).get('default-abc12');
+
+    await expect(sandbox.fs.uploadFileStream(new Blob(['web']).stream(), '/w/x')).rejects.toThrow(
+      /read-only file system/,
+    );
+    expect(await new Response(calls[1]!.stream).text()).toContain('\r\n\r\nweb\r\n--');
+  });
+
+  it('downloadFileStream reports progress, with a total of 0 when the size is not announced', async () => {
+    const { fetch } = fakeFetch(
+      { body: sandboxInfo() },
+      { body: { url: 'https://api.test/storage/download/tok-3', expiresInSeconds: 60 } },
+      { raw: Buffer.from('0123456789'), contentType: 'text/plain' },
+    );
+    const sandbox = await new Mogenius({ ...CONFIG, fetch }).get('default-abc12');
+    const progress: { bytesReceived: number; totalBytes: number }[] = [];
+
+    const stream = await sandbox.fs.downloadFileStream('digits.txt', { onProgress: (p) => progress.push(p) });
+
+    expect(await new Response(stream).text()).toBe('0123456789');
+    expect(progress.at(-1)).toEqual({ bytesReceived: 10, totalBytes: 0 });
   });
 
   it('downloadFile maps a missing file to the not-found error class before any link is fetched', async () => {
