@@ -19,6 +19,10 @@ flowchart LR
   [sessions](sessions.md)) go over HTTPS to the platform API; large files stream there too
   ([`uploadFileStream`, `downloadFileStream`](files.md)). Live output and [tunnels](tunnels.md), including
   in-process connections (`createConnection` / `DialContext`), go over a WebSocket to the stream gateway.
+- **Two transports for uploads.** An upload is an HTTP request by default. A web application firewall in front of
+  the API may block content that looks like an attack (scripts, source code); with `transport: 'sftp'` (or the
+  client's `fileTransport`) it goes over SFTP through the stream gateway to the cluster's SSH gateway instead —
+  [Upload over SFTP](files.md#upload-over-sftp).
 
 ## Sandboxes, profiles and warm pools
 

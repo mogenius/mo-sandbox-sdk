@@ -55,6 +55,7 @@ to the environment.
 | `MOGENIUS_SANDBOX_PROFILE`   | `profile`         | `Profile`        | `default`                            |
 | `MOGENIUS_WORKSPACE_NAME`    | `workspaceName`   | `WorkspaceName`  | none — for keys without a cluster role |
 | `MOGENIUS_STREAM_URL`        | `streamUrl`       | `StreamURL`      | `wss://k8s-cmd-stream.mogenius.com`  |
+| `MOGENIUS_FILE_TRANSPORT`    | `fileTransport`   | `FileTransport`  | `http` — or `sftp`, [uploads over SFTP](files.md#upload-over-sftp) |
 | —                            | `fetch`, `webSocket` | `HTTPClient`  | the global ones / `http.DefaultClient` |
 
 > [!IMPORTANT]

@@ -87,6 +87,10 @@ func TestExecuteCommandStreamCloseReasons(t *testing.T) {
 			var notFound *sdkerrors.MogeniusNotFoundError
 			return errors.As(err, &notFound) && notFound.Source == sdkerrors.SourceOperator
 		}},
+		{websocket.StatusPolicyViolation, "UNAUTHORIZED", func(err error) bool {
+			var forbidden *sdkerrors.MogeniusForbiddenError
+			return errors.As(err, &forbidden) && forbidden.Source == sdkerrors.SourceAPI
+		}},
 		{websocket.StatusPolicyViolation, "OPERATOR_NOT_CONNECTED", func(err error) bool {
 			var timeout *sdkerrors.MogeniusTimeoutError
 			return errors.As(err, &timeout) && timeout.ErrorCode == "OPERATOR_TIMEOUT"

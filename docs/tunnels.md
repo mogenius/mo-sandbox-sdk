@@ -98,6 +98,9 @@ go func() {
   connections open at that moment break, new ones work again.
 - **Ends when the pod is gone** — the sandbox was stopped or deleted. `done` / `Done()` and `Err()` say why.
 - **Several connections at once.** Each local TCP connection becomes its own stream through the tunnel.
+- **Two modes of the port-forward.** A tunnel names a port (`remotePort`). Without a port and with `mode=ssh` the
+  same stream reaches the cluster's SSH gateway for the pod instead; the SDK uses that internally for
+  [uploads over SFTP](files.md#upload-over-sftp).
 
 ## Examples
 

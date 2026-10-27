@@ -7,3 +7,4 @@ coverage/
 .env.*
 !.env.example
 packages/typescript/docs/
+_work/

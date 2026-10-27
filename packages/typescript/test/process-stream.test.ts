@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { Mogenius, MogeniusConflictError, MogeniusError, MogeniusNotFoundError } from '../src/index.js';
+import {
+  Mogenius,
+  MogeniusConflictError,
+  MogeniusError,
+  MogeniusForbiddenError,
+  MogeniusNotFoundError,
+} from '../src/index.js';
 import type { ExecEvent } from '../src/index.js';
 import { CONFIG, FakeWebSocket, fakeFetch, sandboxInfo } from './helpers.js';
 
@@ -123,6 +129,12 @@ describe('Process.executeCommandStream', () => {
     const { socket, stream, first } = await openStream();
     socket.end(1011, 'POD_DOES_NOT_EXIST');
     await expect(collect(stream, first)).rejects.toBeInstanceOf(MogeniusNotFoundError);
+  });
+
+  it('maps an UNAUTHORIZED close to the forbidden error', async () => {
+    const { socket, stream, first } = await openStream();
+    socket.end(1008, 'UNAUTHORIZED');
+    await expect(collect(stream, first)).rejects.toBeInstanceOf(MogeniusForbiddenError);
   });
 
   it('explains a failed handshake', async () => {

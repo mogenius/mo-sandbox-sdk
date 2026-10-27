@@ -169,6 +169,15 @@ The operator runs each operation inside the sandbox's container, so nothing is i
 it. Uploads are limited to 100 MB per file. `uploadFile` takes a Buffer or string, not a local path: read the
 file yourself first, or stream it with `uploadFileStream`.
 
+Uploads go over HTTP to the platform API by default. Content a web application firewall in front of the API
+would block (scripts, source code) goes over SFTP instead, through the stream gateway to the cluster's SSH
+gateway — per call or for the whole client (`fileTransport: 'sftp'`, `MOGENIUS_FILE_TRANSPORT=sftp`). There is no
+silent fallback: an error with `errorCode === ERROR_CODE_SFTP_UNAVAILABLE` says nothing was written.
+
+```ts
+await sandbox.fs.uploadFile(script, 'run.sh', { transport: 'sftp' });
+```
+
 ## Tunnels (mogenius only)
 
 A tunnel forwards TCP connections from a local port to a port inside the sandbox, like `kubectl port-forward`,

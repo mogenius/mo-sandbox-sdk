@@ -76,31 +76,36 @@ func (s *Sandbox) Tunnel(ctx context.Context, port int, opts ...func(*options.Tu
 	for _, opt := range opts {
 		opt(tunnelOpts)
 	}
-	t := &Tunnel{
-		api: s.api,
-		params: map[string]string{
-			"type":         "PORT_FORWARD",
-			"cmd":          "port-forward",
-			"namespace":    s.Namespace,
-			"kind":         "Pod",
-			"workloadName": podName,
-			"remotePort":   strconv.Itoa(port),
-		},
-		done: make(chan struct{}),
-		subs: map[string]net.Conn{},
+	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(tunnelOpts.LocalPort)))
+	if err != nil {
+		return nil, sdkerrors.NewMogeniusError(fmt.Sprintf("Could not listen on 127.0.0.1:%d: %v", tunnelOpts.LocalPort, err), 0, nil)
 	}
+	t, err := s.openTunnel(ctx, map[string]string{
+		"type":         "PORT_FORWARD",
+		"cmd":          "port-forward",
+		"namespace":    s.Namespace,
+		"kind":         "Pod",
+		"workloadName": podName,
+		"remotePort":   strconv.Itoa(port),
+	}, listener)
+	if err != nil {
+		_ = listener.Close()
+		return nil, err
+	}
+	go t.accept()
+	return t, nil
+}
+
+// openTunnel opens a port-forward stream of the stream gateway with params and keeps it: connections come through
+// DialContext, or through listener when there is one. The SFTP uploads open one in mode=ssh, without a listener.
+func (s *Sandbox) openTunnel(ctx context.Context, params map[string]string, listener net.Listener) (*Tunnel, error) {
+	t := &Tunnel{api: s.api, params: params, listener: listener, done: make(chan struct{}), subs: map[string]net.Conn{}}
 	conn, err := t.connect(ctx)
 	if err != nil {
 		return nil, err
 	}
-	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(tunnelOpts.LocalPort)))
-	if err != nil {
-		_ = conn.CloseNow()
-		return nil, sdkerrors.NewMogeniusError(fmt.Sprintf("Could not listen on 127.0.0.1:%d: %v", tunnelOpts.LocalPort, err), 0, nil)
-	}
-	t.listener, t.conn = listener, conn
+	t.conn = conn
 	go t.serve(conn)
-	go t.accept()
 	go t.ping()
 	return t, nil
 }
@@ -156,7 +161,9 @@ func (t *Tunnel) shutdown(cause error) {
 		conn, subs := t.conn, t.subs
 		t.conn, t.subs = nil, map[string]net.Conn{}
 		t.mu.Unlock()
-		_ = t.listener.Close()
+		if t.listener != nil {
+			_ = t.listener.Close()
+		}
 		for _, sub := range subs {
 			_ = sub.Close()
 		}

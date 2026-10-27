@@ -169,6 +169,11 @@ func streamCloseError(err error, streamURL string) error {
 		notFound := sdkerrors.NewMogeniusNotFoundError("The sandbox pod does not exist (any more).", nil)
 		notFound.Source = sdkerrors.SourceOperator
 		return notFound
+	case reason == "UNAUTHORIZED":
+		// the key may not open this stream: a viewer, or no grant on the cluster
+		forbidden := sdkerrors.NewMogeniusForbiddenError("The stream gateway refused the key for this stream (UNAUTHORIZED).", nil)
+		forbidden.Source = sdkerrors.SourceAPI
+		return forbidden
 	case reason == "OPERATOR_NOT_CONNECTED":
 		timeout := sdkerrors.NewMogeniusTimeoutError(
 			"The cluster operator did not connect to the stream gateway. It dials the address the platform gives it (MO_PRODUCT_NEST__K8S_CMD_STREAM_WEBSOCKET_HOST), which must be reachable from where the operator runs.")

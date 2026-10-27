@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	sdkerrors "github.com/mogenius/mo-sandbox-sdk/packages/go/pkg/errors"
@@ -69,6 +70,9 @@ type Sandbox struct {
 
 	api      *apiClient
 	language types.CodeLanguage
+
+	sftpMu   sync.Mutex
+	sftpSess *sftpSession
 }
 
 // sandboxDTO is the sandbox as the platform returns it.
@@ -171,6 +175,7 @@ func (s *Sandbox) Stop(ctx context.Context) error {
 // StopWithTimeout is Stop with its own wait; 0 waits as long as ctx allows.
 // force is accepted for compatibility: Kubernetes stops the pod the same way either way.
 func (s *Sandbox) StopWithTimeout(ctx context.Context, timeout time.Duration, force bool) error {
+	s.closeSFTP()
 	if err := s.call(ctx, func(dto *sandboxDTO) error { return s.api.post(ctx, s.path()+"/stop", nil, nil, dto) }); err != nil {
 		return err
 	}
@@ -179,6 +184,7 @@ func (s *Sandbox) StopWithTimeout(ctx context.Context, timeout time.Duration, fo
 
 // Delete deletes the sandbox; pod and storage go with it.
 func (s *Sandbox) Delete(ctx context.Context) error {
+	s.closeSFTP()
 	return s.call(ctx, func(dto *sandboxDTO) error { return s.api.delete(ctx, s.path(), nil, dto) })
 }
 

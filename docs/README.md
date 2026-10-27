@@ -49,7 +49,7 @@ await mogenius.delete(sandbox);
 | [Sandboxes](sandboxes.md)                | Create, warm pools, find, list, start, stop, delete, labels, lifetime, auto-stop |
 | [Commands and code](commands.md)         | `executeCommand`, `codeRun` with charts, live output streams            |
 | [Sessions](sessions.md)                  | Stateful shells, list and look up sessions, background commands, live logs, stdin |
-| [Files](files.md)                        | Upload and download one or many, streams with progress, list, move, permissions, search, replace |
+| [Files](files.md)                        | Upload and download one or many, streams with progress, uploads over SFTP past a firewall, list, move, permissions, search, replace |
 | [Tunnels](tunnels.md)                    | Reach an HTTP server, WebSocket, gRPC or database inside the sandbox, also in-process |
 | [Errors](errors.md)                      | The error hierarchy and how to branch on it                             |
 | [Recipes](recipes.md)                    | End-to-end examples: agents, test runs, web previews, data analysis     |

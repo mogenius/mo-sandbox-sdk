@@ -36,6 +36,12 @@ export interface MogeniusConfig {
    * Env: `MOGENIUS_STREAM_URL`. Default: wss://k8s-cmd-stream.mogenius.com
    */
   streamUrl?: string;
+  /**
+   * mogenius: how uploads reach the sandbox when the call names none: `'http'`
+   * (the platform API) or `'sftp'` (SFTP through the stream gateway, past any
+   * web application firewall in front of the API). Env: `MOGENIUS_FILE_TRANSPORT`. Default `'http'`.
+   */
+  fileTransport?: FileTransport;
   /** Replaces the global `fetch`; for tests and custom agents. */
   fetch?: typeof fetch;
   /** Replaces the global `WebSocket`; for tests and custom agents. */
@@ -52,6 +58,7 @@ export interface ResolvedConfig {
   namespace: string;
   profile: string;
   workspaceName: string | undefined;
+  fileTransport: FileTransport;
   fetch: typeof fetch;
   webSocket: typeof WebSocket | undefined;
 }
@@ -352,6 +359,20 @@ export interface UploadResult {
   path: string;
   success: boolean;
   error: string | null;
+}
+
+/**
+ * mogenius only: how an upload reaches the sandbox. `'http'` posts it to the
+ * platform API; `'sftp'` writes it over SFTP through the stream gateway's
+ * port-forward in mode=ssh to the cluster's SSH gateway — WebSocket frames,
+ * which a web application firewall in front of the API does not inspect.
+ */
+export type FileTransport = 'http' | 'sftp';
+
+/** mogenius only: options of `uploadFile()` and `uploadFiles()`. */
+export interface UploadOptions {
+  /** Overrides the client's `fileTransport` for this call. */
+  transport?: FileTransport;
 }
 
 /** mogenius only: how far `uploadFileStream()` got. */

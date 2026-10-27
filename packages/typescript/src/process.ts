@@ -1,5 +1,5 @@
 import type { ApiClient } from './api-client.js';
-import { MogeniusError, MogeniusNotFoundError, MogeniusTimeoutError } from './errors.js';
+import { MogeniusError, MogeniusForbiddenError, MogeniusNotFoundError, MogeniusTimeoutError } from './errors.js';
 import { PYTHON_BOOTSTRAP } from './python-bootstrap.js';
 import type {
   CreateSessionOptions,
@@ -408,6 +408,12 @@ export function streamCloseError(event: CloseEvent, streamUrl: string): Mogenius
   const reason = event.reason || '';
   if (reason === 'POD_DOES_NOT_EXIST') {
     return new MogeniusNotFoundError('The sandbox pod does not exist (any more).', { source: 'operator' });
+  }
+  if (reason === 'UNAUTHORIZED') {
+    // the key may not open this stream: a viewer, or no grant on the cluster
+    return new MogeniusForbiddenError('The stream gateway refused the key for this stream (UNAUTHORIZED).', {
+      source: 'api',
+    });
   }
   if (reason === 'OPERATOR_NOT_CONNECTED') {
     return new MogeniusTimeoutError(

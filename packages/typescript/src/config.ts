@@ -1,4 +1,4 @@
-import { MogeniusError } from './errors.js';
+import { MogeniusError, MogeniusValidationError } from './errors.js';
 import type { MogeniusConfig, ResolvedConfig } from './types.js';
 
 export const DEFAULT_API_URL = 'https://platform-api.mogenius.com';
@@ -28,6 +28,12 @@ export function resolveConfig(config: MogeniusConfig = {}): ResolvedConfig {
   if (typeof fetchImpl !== 'function') {
     throw new MogeniusError('No fetch available: use Node 24+ or pass `fetch` in the config.');
   }
+  const fileTransport = (config.fileTransport ?? env('MOGENIUS_FILE_TRANSPORT') ?? 'http').toLowerCase();
+  if (fileTransport !== 'http' && fileTransport !== 'sftp') {
+    throw new MogeniusValidationError(
+      `fileTransport (MOGENIUS_FILE_TRANSPORT) is "${fileTransport}"; it is http or sftp.`,
+    );
+  }
   return {
     apiKey,
     apiUrl,
@@ -37,6 +43,7 @@ export function resolveConfig(config: MogeniusConfig = {}): ResolvedConfig {
     namespace: config.namespace ?? config.target ?? env('MOGENIUS_SANDBOX_NAMESPACE') ?? DEFAULT_NAMESPACE,
     profile: config.profile ?? env('MOGENIUS_SANDBOX_PROFILE') ?? DEFAULT_PROFILE,
     workspaceName: config.workspaceName ?? env('MOGENIUS_WORKSPACE_NAME'),
+    fileTransport,
     fetch: fetchImpl,
     // only needed for streams, so its absence is reported there
     webSocket: config.webSocket ?? globalThis.WebSocket,

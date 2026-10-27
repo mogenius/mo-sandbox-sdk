@@ -43,6 +43,7 @@ explicit values, and empty fields still fall back to the environment.
 | `Profile`        | `MOGENIUS_SANDBOX_PROFILE`   | `default` — the warm pool `Create` claims from when the params name none |
 | `WorkspaceName`  | `MOGENIUS_WORKSPACE_NAME`    | none — for keys without a cluster role |
 | `StreamURL`      | `MOGENIUS_STREAM_URL`        | `wss://k8s-cmd-stream.mogenius.com` |
+| `FileTransport`  | `MOGENIUS_FILE_TRANSPORT`    | `http` — or `sftp`: uploads over SFTP through the stream gateway |
 | `HTTPClient`     | —                            | `http.DefaultClient`                |
 
 Streams and tunnels (`ExecuteCommandStream`, `GetSessionCommandLogsStream`, `Tunnel`) need `OrganizationID` and
@@ -185,6 +186,15 @@ downloads := sandbox.FileSystem.DownloadFiles(ctx, []string{"a.txt", "b.txt"}) /
 `ListFiles`, `GetFileInfo`, `CreateFolder`, `DeleteFile`, `MoveFiles`, `SetFilePermissions`, `SearchFiles`,
 `FindFiles` and `ReplaceInFiles` work on paths inside the container. `DownloadFileStream` and
 `UploadFileStream` move big files without holding them in memory; a broken download resumes on its own.
+
+Uploads go over HTTP to the platform API by default. Content a web application firewall in front of the API
+would block (scripts, source code) goes over SFTP instead, through the stream gateway to the cluster's SSH
+gateway — per call or for the whole client (`FileTransport`, `MOGENIUS_FILE_TRANSPORT=sftp`). There is no silent
+fallback: an error with `ErrorCode == mogenius.ErrorCodeSFTPUnavailable` says nothing was written.
+
+```go
+err := sandbox.FileSystem.UploadFile(ctx, "./run.sh", "run.sh", options.WithTransport(options.TransportSFTP))
+```
 
 ## Errors
 

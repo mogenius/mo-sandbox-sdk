@@ -17,7 +17,7 @@ Every error the SDK throws (TS) or returns (Go) belongs to one hierarchy. Each c
 | --------------------------------------- | --------------------------------------- | ------ | -------------------------------------------------------------- |
 | `MogeniusError`                         | `*MogeniusError`                        | any    | base of all; also no API key, no `fetch`                       |
 | `MogeniusUnauthorizedError`             | `MogeniusAuthenticationError`           | 401    | the key was rejected                                           |
-| `MogeniusForbiddenError`                | `MogeniusForbiddenError`                | 403    | no grant on workspace or cluster, RBAC, file permissions       |
+| `MogeniusForbiddenError`                | `MogeniusForbiddenError`                | 403    | no grant on workspace or cluster, RBAC, file permissions; the stream gateway refused the key (`UNAUTHORIZED`, no status) |
 | `MogeniusNotFoundError`                 | `MogeniusNotFoundError`                 | 404    | no sandbox, container, profile, file, session or command       |
 | `MogeniusConflictError`                 | `MogeniusConflictError`                 | 409    | wrong state: not started, name taken, command still running    |
 | `MogeniusValidationError`               | `MogeniusValidationError`               | 400    | bad parameter, label or env name; env not allowed by profile   |
@@ -40,6 +40,7 @@ Every error the SDK throws (TS) or returns (Go) belongs to one hierarchy. Each c
 | `OPERATOR_TIMEOUT`                                                   | timeout              |
 | `OPERATOR_UPGRADE_REQUIRED`                                          | operator upgrade required |
 | `UNSUPPORTED`                                                        | unsupported          |
+| `SFTP_UNAVAILABLE` *m* — set by the SDK on the error it got: an [upload over SFTP](files.md#upload-over-sftp) found no way into the sandbox, nothing was written; `ERROR_CODE_SFTP_UNAVAILABLE` / `mogenius.ErrorCodeSFTPUnavailable` | keeps its kind (e.g. forbidden) |
 
 ## Handling errors
 

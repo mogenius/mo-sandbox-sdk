@@ -28,11 +28,12 @@ export const tunnelTiming = { reconnectDelaysMs: [1000, 2000, 4000, 8000, 16000,
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-/** Where a tunnel leads: a port of a pod. */
+/** Where a tunnel leads: a port of a pod, or with `mode: 'ssh'` the cluster's SSH gateway for the pod. */
 export interface TunnelTarget {
   namespace: string;
   podName: string;
-  port: number;
+  port?: number;
+  mode?: 'ssh';
 }
 
 /**
@@ -42,6 +43,19 @@ export interface TunnelTarget {
 export async function openTunnel(api: ApiClient, target: TunnelTarget, options: TunnelOptions): Promise<Tunnel> {
   const tunnel = new PortForwardTunnel(api, target);
   await tunnel.start(options.localPort ?? 0);
+  return tunnel;
+}
+
+/**
+ * Opens a port-forward stream without a local listener: connections come
+ * through `createConnection()`. The SFTP uploads open one in mode=ssh.
+ */
+export async function openStreamTunnel(
+  api: ApiClient,
+  target: TunnelTarget,
+): Promise<Pick<Tunnel, 'createConnection' | 'close' | 'done'>> {
+  const tunnel = new PortForwardTunnel(api, target);
+  await tunnel.start(undefined);
   return tunnel;
 }
 
@@ -82,12 +96,17 @@ class PortForwardTunnel implements Tunnel {
     return `http://${this.host}:${this.port}`;
   }
 
-  async start(localPort: number): Promise<void> {
+  /** `localPort` undefined: no listener, connections only through `createConnection()`. */
+  async start(localPort: number | undefined): Promise<void> {
     const [net, stream] = await Promise.all([import('node:net'), import('node:stream')]);
     this.duplexPair = stream.duplexPair;
     const socket = await this.connect();
     this.socket = socket;
     this.serve(socket);
+    if (localPort === undefined) {
+      this.startPing();
+      return;
+    }
     const server = net.createServer((local) => this.bridge(local));
     try {
       await new Promise<void>((resolve, reject) => {
@@ -105,6 +124,10 @@ class PortForwardTunnel implements Tunnel {
     }
     this.server = server;
     this.port = (server.address() as { port: number }).port;
+    this.startPing();
+  }
+
+  private startPing(): void {
     this.pingTimer = setInterval(() => this.send(PING), PING_INTERVAL_MS);
     this.pingTimer.unref?.();
   }
@@ -144,6 +167,7 @@ class PortForwardTunnel implements Tunnel {
           kind: 'Pod',
           workloadName: this.target.podName,
           remotePort: this.target.port,
+          mode: this.target.mode,
         });
       } catch (err) {
         reject(err instanceof Error ? err : new MogeniusError(String(err), { source: 'sdk' }));

@@ -1,14 +1,17 @@
 import type { ApiClient } from './api-client.js';
-import { MogeniusError } from './errors.js';
+import { MogeniusError, MogeniusValidationError } from './errors.js';
+import { ERROR_CODE_SFTP_UNAVAILABLE, type SftpUploads } from './sftp.js';
 import type {
   DownloadLink,
   DownloadProgress,
   FileInfo,
+  FileTransport,
   FileUpload,
   Match,
   ReplaceResult,
   SearchFilesResponse,
   SetFilePermissionsParams,
+  UploadOptions,
   UploadProgress,
   UploadResult,
 } from './types.js';
@@ -41,6 +44,8 @@ export class FileSystem {
     private readonly namespace: string,
     /** Where the sandbox runs right now; files are a pod feature. */
     private readonly pod: () => Promise<{ podName: string; containerName: string }>,
+    /** The sandbox's SFTP session, for uploads with `transport: 'sftp'`. */
+    private readonly sftp: SftpUploads,
   ) {}
 
   /** Entries directly below `path` (default: the working directory). */
@@ -89,8 +94,14 @@ export class FileSystem {
    * Writes `file` to `path`, creating parent folders. A string is written as
    * UTF-8; a local file path is not accepted here, which the browser-safe
    * SDK does not — read the file yourself and pass the Buffer.
+   *
+   * @param options mogenius: `transport` picks HTTP or SFTP for this call; the client's `fileTransport` is the default
    */
-  async uploadFile(file: Buffer | Uint8Array | string, path: string): Promise<void> {
+  async uploadFile(file: Buffer | Uint8Array | string, path: string, options: UploadOptions = {}): Promise<void> {
+    if (this.transport(options.transport) === 'sftp') {
+      await this.sftp.upload(chunksOf(file), path);
+      return;
+    }
     const form = new FormData();
     form.append('file', toBlob(file), basename(path));
     const results = await this.api.postForm<UploadResult[]>(await this.route('/upload'), form, { path });
@@ -102,13 +113,18 @@ export class FileSystem {
    * in memory — for files too big for a Buffer, e.g. `createReadStream(…)`
    * or a `fetch` body. The upload is sent chunked, creating parent folders.
    *
-   * @param options `onProgress` hears how many bytes were read from the source so far
+   * @param options `onProgress` hears how many bytes were read from the source so far; `transport` as for `uploadFile()`
    */
   async uploadFileStream(
     source: ReadableStream<Uint8Array> | AsyncIterable<Uint8Array>,
     path: string,
-    options: { onProgress?: (progress: UploadProgress) => void } = {},
+    options: { onProgress?: (progress: UploadProgress) => void; transport?: FileTransport } = {},
   ): Promise<void> {
+    if (this.transport(options.transport) === 'sftp') {
+      // a web stream is async iterable in Node
+      await this.sftp.upload(source as AsyncIterable<Uint8Array>, path, options.onProgress);
+      return;
+    }
     const boundary = `----mogenius-${crypto.randomUUID()}`;
     // the form encoding of a file name: quotes and line breaks percent-encoded
     const filename = basename(path).replace(/"/g, '%22').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
@@ -151,10 +167,17 @@ export class FileSystem {
     assertUploaded(results);
   }
 
-  /** Several files in one request; each failure is reported, the others still land. */
-  async uploadFiles(files: FileUpload[]): Promise<UploadResult[]> {
+  /**
+   * Several files in one request; each failure is reported, the others still
+   * land. Over SFTP (mogenius: `transport`) the files go one after the other
+   * through the sandbox's SFTP session.
+   */
+  async uploadFiles(files: FileUpload[], options: UploadOptions = {}): Promise<UploadResult[]> {
     if (files.length === 0) {
       return [];
+    }
+    if (this.transport(options.transport) === 'sftp') {
+      return this.uploadFilesOverSftp(files);
     }
     const form = new FormData();
     for (const upload of files) {
@@ -163,6 +186,35 @@ export class FileSystem {
       form.append(upload.destination, toBlob(upload.source), basename(upload.destination));
     }
     return this.api.postForm<UploadResult[]>(await this.route('/upload'), form);
+  }
+
+  /** `uploadFiles()` over SFTP: one after the other, one result each. */
+  private async uploadFilesOverSftp(files: FileUpload[]): Promise<UploadResult[]> {
+    const results: UploadResult[] = [];
+    for (const [index, upload] of files.entries()) {
+      try {
+        const path = await this.sftp.upload(chunksOf(upload.source), upload.destination);
+        results.push({ path, success: true, error: null });
+      } catch (err) {
+        if (index === 0 && err instanceof MogeniusError && err.errorCode === ERROR_CODE_SFTP_UNAVAILABLE) {
+          // nothing can land: the call fails as the HTTP upload's request would
+          throw err;
+        }
+        results.push({ path: upload.destination, success: false, error: (err as Error).message });
+      }
+    }
+    return results;
+  }
+
+  /** The call's transport, else the client's. */
+  private transport(transport: FileTransport | undefined): FileTransport {
+    const chosen = transport ?? this.api.fileTransport;
+    if (chosen !== 'http' && chosen !== 'sftp') {
+      throw new MogeniusValidationError(`The upload transport is "${String(chosen)}"; it is http or sftp.`, {
+        source: 'sdk',
+      });
+    }
+    return chosen;
   }
 
   /** Downloads several files; a failure for one does not stop the others. */
@@ -252,6 +304,11 @@ function toBlob(source: Buffer | Uint8Array | string): Blob {
     return new Blob([source], { type: 'application/octet-stream' });
   }
   return new Blob([source as Uint8Array<ArrayBuffer>], { type: 'application/octet-stream' });
+}
+
+/** The content of an upload as one chunk; a string is UTF-8. */
+function chunksOf(source: Buffer | Uint8Array | string): Uint8Array[] {
+  return [typeof source === 'string' ? encoder.encode(source) : source];
 }
 
 function basename(path: string): string {

@@ -1,11 +1,13 @@
 package mogenius
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
 
 	sdkerrors "github.com/mogenius/mo-sandbox-sdk/packages/go/pkg/errors"
+	"github.com/mogenius/mo-sandbox-sdk/packages/go/pkg/options"
 	"github.com/mogenius/mo-sandbox-sdk/packages/go/pkg/types"
 )
 
@@ -28,6 +30,7 @@ type resolvedConfig struct {
 	profile        string
 	workspaceName  string
 	httpClient     *http.Client
+	fileTransport  options.Transport
 }
 
 // resolveConfig lets explicit config win and environment variables fill the
@@ -47,6 +50,11 @@ func resolveConfig(config *types.MogeniusConfig) (*resolvedConfig, error) {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
+	transport := options.Transport(strings.ToLower(first(config.FileTransport, env("MOGENIUS_FILE_TRANSPORT"), string(options.TransportHTTP))))
+	if transport != options.TransportHTTP && transport != options.TransportSFTP {
+		return nil, sdkerrors.NewMogeniusValidationError(
+			fmt.Sprintf("FileTransport (MOGENIUS_FILE_TRANSPORT) is %q; it is http or sftp.", transport), nil)
+	}
 	return &resolvedConfig{
 		apiKey:         apiKey,
 		apiURL:         strings.TrimRight(first(config.APIUrl, env("MOGENIUS_API_URL"), DefaultAPIURL), "/"),
@@ -57,6 +65,7 @@ func resolveConfig(config *types.MogeniusConfig) (*resolvedConfig, error) {
 		profile:        first(config.Profile, env("MOGENIUS_SANDBOX_PROFILE"), DefaultProfile),
 		workspaceName:  first(config.WorkspaceName, env("MOGENIUS_WORKSPACE_NAME")),
 		httpClient:     httpClient,
+		fileTransport:  transport,
 	}, nil
 }
 

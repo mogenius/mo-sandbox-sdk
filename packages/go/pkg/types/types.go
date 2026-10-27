@@ -48,6 +48,10 @@ type MogeniusConfig struct {
 	StreamURL string
 	// mogenius: HTTPClient replaces http.DefaultClient for API calls, downloads and streams.
 	HTTPClient *http.Client
+	// mogenius: FileTransport is how uploads reach the sandbox when the call names none: "http" (the platform API)
+	// or "sftp" (SFTP through the stream gateway, past any web application firewall in front of the API).
+	// Env: MOGENIUS_FILE_TRANSPORT. Default: http
+	FileTransport string
 }
 
 // SandboxBaseParams are the parameters every Create call shares.

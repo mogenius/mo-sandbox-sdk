@@ -1,5 +1,5 @@
 import { errorFromResponse, MogeniusError } from './errors.js';
-import type { ErrorBody, ResolvedConfig } from './types.js';
+import type { ErrorBody, FileTransport, ResolvedConfig } from './types.js';
 
 type Query = Record<string, string | number | undefined>;
 
@@ -17,6 +17,10 @@ export class ApiClient {
 
   get streamUrl(): string {
     return this.config.streamUrl;
+  }
+
+  get fileTransport(): FileTransport {
+    return this.config.fileTransport;
   }
 
   async get<T>(path: string, query?: Query): Promise<T> {

@@ -2,6 +2,7 @@ export { Mogenius } from './mogenius.js';
 export { Sandbox } from './sandbox.js';
 export { Process, DEFAULT_COMMAND_TIMEOUT_SECONDS } from './process.js';
 export { FileSystem } from './file-system.js';
+export { ERROR_CODE_SFTP_UNAVAILABLE } from './sftp.js';
 export { resolveConfig, DEFAULT_API_URL, DEFAULT_STREAM_URL, DEFAULT_NAMESPACE, DEFAULT_PROFILE } from './config.js';
 export {
   MogeniusError,
@@ -46,6 +47,8 @@ export type {
   FileInfo,
   FileUpload,
   UploadResult,
+  UploadOptions,
+  FileTransport,
   UploadProgress,
   DownloadProgress,
   SearchFilesResponse,

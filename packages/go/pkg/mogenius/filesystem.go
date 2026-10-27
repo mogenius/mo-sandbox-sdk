@@ -190,21 +190,28 @@ func (f *FileSystemService) ReplaceInFiles(ctx context.Context, files []string, 
 
 // UploadFile writes source to destination, creating parent folders. source
 // is []byte (the content) or string (the path of a local file).
-func (f *FileSystemService) UploadFile(ctx context.Context, source any, destination string) error {
+// options.WithTransport picks HTTP or SFTP for this call (mogenius); the
+// client's FileTransport is the default.
+func (f *FileSystemService) UploadFile(ctx context.Context, source any, destination string, opts ...func(*options.Upload)) error {
 	content, size, closeSource, err := openUploadSource("UploadFile", source)
 	if err != nil {
 		return err
 	}
 	defer closeSource()
-	return f.upload(ctx, content, size, destination, nil)
+	return f.upload(ctx, f.transport(opts), content, size, destination, nil)
 }
 
 // UploadFiles writes several files in one request, creating parent folders.
 // Each Source is []byte or the path of a local file. A file that fails is
-// reported in its result; the others still land.
-func (f *FileSystemService) UploadFiles(ctx context.Context, files []types.FileUpload) ([]types.UploadResult, error) {
+// reported in its result; the others still land. Over SFTP
+// (options.WithTransport, mogenius) the files go one after the other through
+// the sandbox's SFTP session.
+func (f *FileSystemService) UploadFiles(ctx context.Context, files []types.FileUpload, opts ...func(*options.Upload)) ([]types.UploadResult, error) {
 	if len(files) == 0 {
 		return []types.UploadResult{}, nil
+	}
+	if f.transport(opts) == options.TransportSFTP {
+		return f.uploadSFTPFiles(ctx, files)
 	}
 	parts := make([]formPart, len(files))
 	for i, file := range files {
@@ -266,6 +273,7 @@ type UploadProgress struct {
 
 type uploadStreamConfig struct {
 	onProgress func(UploadProgress)
+	transport  options.Transport
 }
 
 // WithUploadProgress calls fn as the upload reads its source.
@@ -273,6 +281,26 @@ func WithUploadProgress(fn func(UploadProgress)) UploadStreamOption {
 	return func(c *uploadStreamConfig) {
 		c.onProgress = fn
 	}
+}
+
+// WithUploadTransport sends the stream over transport instead of the client's
+// FileTransport (mogenius), as options.WithTransport does for UploadFile.
+func WithUploadTransport(transport options.Transport) UploadStreamOption {
+	return func(c *uploadStreamConfig) {
+		c.transport = transport
+	}
+}
+
+// transport is the call's transport, else the client's.
+func (f *FileSystemService) transport(opts []func(*options.Upload)) options.Transport {
+	upload := &options.Upload{}
+	for _, opt := range opts {
+		opt(upload)
+	}
+	if upload.Transport != "" {
+		return upload.Transport
+	}
+	return f.sandbox.api.cfg.fileTransport
 }
 
 // UploadFileStream writes what source yields to remotePath without holding it
@@ -293,10 +321,18 @@ func (f *FileSystemService) UploadFileStream(ctx context.Context, source io.Read
 			}
 		}
 	}
-	return f.upload(ctx, source, size, remotePath, config.onProgress)
+	return f.upload(ctx, f.transport([]func(*options.Upload){func(o *options.Upload) { o.Transport = config.transport }}), source, size, remotePath, config.onProgress)
 }
 
-func (f *FileSystemService) upload(ctx context.Context, content io.Reader, size int64, destination string, progress func(UploadProgress)) error {
+func (f *FileSystemService) upload(ctx context.Context, transport options.Transport, content io.Reader, size int64, destination string, progress func(UploadProgress)) error {
+	switch transport {
+	case options.TransportSFTP:
+		_, err := f.uploadSFTP(ctx, content, size, destination, progress)
+		return err
+	case options.TransportHTTP:
+	default:
+		return sdkerrors.NewMogeniusValidationError(fmt.Sprintf("The upload transport is %q; it is http or sftp.", transport), nil)
+	}
 	if progress != nil {
 		content = &countingReader{reader: content, report: func(n int64) { progress(UploadProgress{BytesSent: n}) }}
 	}

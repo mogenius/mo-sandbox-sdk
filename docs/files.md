@@ -8,9 +8,9 @@ each operation inside the container — nothing is installed in the image for it
 
 | TypeScript                                   | Go                                                  | Does                                     |
 | -------------------------------------------- | --------------------------------------------------- | ---------------------------------------- |
-| `uploadFile(data, path)`                     | `UploadFile(ctx, source, path)`                     | write one file, creating parent folders  |
-| `uploadFiles([{ source, destination }])`     | `UploadFiles(ctx, []types.FileUpload)`              | several files in one request             |
-| `uploadFileStream(source, path, { onProgress })` *m* | `UploadFileStream(ctx, reader, path, opts...)` | upload without holding it in memory  |
+| `uploadFile(data, path, { transport })`      | `UploadFile(ctx, source, path, opts...)`            | write one file, creating parent folders; [over SFTP](#upload-over-sftp) *m* |
+| `uploadFiles([{ source, destination }], { transport })` | `UploadFiles(ctx, []types.FileUpload, opts...)` | several files in one request       |
+| `uploadFileStream(source, path, { onProgress, transport })` *m* | `UploadFileStream(ctx, reader, path, opts...)` | upload without holding it in memory |
 | `downloadFile(path)`                         | `DownloadFile(ctx, path, localPath)`                | the file's bytes; a folder as `.tar.gz`  |
 | `downloadFiles(paths)`                       | `DownloadFiles(ctx, paths)`                         | several files; one failure does not stop the rest |
 | `downloadFileStream(path, { onProgress })` *m* | `DownloadFileStream(ctx, path, opts...)`          | stream, resumes on its own               |
@@ -99,6 +99,81 @@ err = sandbox.FileSystem.UploadFileStream(ctx, file, "/tmp/dataset.parquet",
 In Go a `string` source is a **local path**, unlike in TypeScript.
 
 </details>
+
+### Upload over SFTP
+
+*mogenius addition.* By default an upload is an HTTP request to the platform API. A web application firewall in
+front of the API (Cloudflare on mogenius.com) inspects that request and may block content that looks like an
+attack — shell scripts, source code with `curl … -d @-`, SQL. With `transport: 'sftp'` the file goes over SFTP
+instead: the stream gateway's port-forward in mode `ssh` carries an SSH connection to the cluster's SSH gateway,
+which writes into the pod. The content travels in WebSocket frames, which the firewall does not inspect. Same
+destination rules as over HTTP: absolute or relative to the working directory, parent folders are created, an
+existing file is replaced.
+
+<details open>
+<summary><b>TypeScript</b></summary>
+
+```ts
+// per call
+await sandbox.fs.uploadFile(script, 'run.sh', { transport: 'sftp' });
+await sandbox.fs.uploadFiles(files, { transport: 'sftp' });
+await sandbox.fs.uploadFileStream(createReadStream('./big.tar'), '/tmp/big.tar', { transport: 'sftp' });
+
+// or for every upload of the client (env MOGENIUS_FILE_TRANSPORT=sftp); the call's transport wins
+const mogenius = new Mogenius({ fileTransport: 'sftp' });
+
+// no silent fallback: decide yourself
+try {
+  await sandbox.fs.uploadFile(script, 'run.sh', { transport: 'sftp' });
+} catch (err) {
+  if (err instanceof MogeniusError && err.errorCode === ERROR_CODE_SFTP_UNAVAILABLE) {
+    await sandbox.fs.uploadFile(script, 'run.sh', { transport: 'http' });
+  } else throw err;
+}
+```
+
+</details>
+
+<details>
+<summary><b>Go</b></summary>
+
+```go
+sftp := options.WithTransport(options.TransportSFTP)
+err := sandbox.FileSystem.UploadFile(ctx, script, "run.sh", sftp)
+results, err := sandbox.FileSystem.UploadFiles(ctx, files, sftp)
+err = sandbox.FileSystem.UploadFileStream(ctx, file, "/tmp/big.tar", mogenius.WithUploadTransport(options.TransportSFTP))
+
+// or for every upload of the client (env MOGENIUS_FILE_TRANSPORT=sftp); the call's option wins
+client, err := mogenius.NewClientWithConfig(&types.MogeniusConfig{FileTransport: "sftp"})
+
+// no silent fallback: decide yourself
+var failure *sdkerrors.MogeniusError
+if errors.As(err, &failure) && failure.ErrorCode == mogenius.ErrorCodeSFTPUnavailable {
+	err = sandbox.FileSystem.UploadFile(ctx, script, "run.sh", options.WithTransport(options.TransportHTTP))
+}
+```
+
+</details>
+
+| Setting                          | TypeScript                       | Go                                      | Default |
+| -------------------------------- | -------------------------------- | --------------------------------------- | ------- |
+| per call                         | `{ transport: 'http' \| 'sftp' }` | `options.WithTransport(…)`; streams: `mogenius.WithUploadTransport(…)` | the client's |
+| per client                       | `fileTransport`                  | `MogeniusConfig.FileTransport`          | `http`  |
+| environment                      | `MOGENIUS_FILE_TRANSPORT`        | `MOGENIUS_FILE_TRANSPORT`               | —       |
+
+- **One session per sandbox.** The first SFTP upload opens it, the next ones reuse it; `uploadFiles` writes the
+  files one after the other through it. It closes after 5 s without an upload, when it breaks (the next upload opens
+  a new one) and on `stop()`/`delete()` of the sandbox. In Node an open session keeps the process alive until then.
+- **Needs** `organizationId` and `clusterId` (the stream gateway does not take them from the key) and the cluster's
+  SSH gateway (operator with `MO_SSH_GATEWAY_ENABLED`, on by default). The SSH login is "none": the stream is
+  already authenticated with the API key; the user name picks the sandbox's container. The SDK does not pin the
+  gateway's host key — TLS and the key secure the stream.
+- **A file the container refuses** (path, rights, space) fails that upload as over HTTP (`source: 'operator'`); the
+  session stays. A transfer that breaks leaves the remote file as it was.
+- **Error code `SFTP_UNAVAILABLE`**: the stream gateway or the SSH gateway refused the connection, cannot do mode
+  `ssh` or is switched off — nothing was written. The error keeps its kind (e.g. `MogeniusForbiddenError` for a
+  refused key); a missing pod stays `MogeniusNotFoundError`. There is no automatic fallback to HTTP.
+- Downloads, folders, moves and permissions stay HTTP: they carry no file content in the request.
 
 ## Download
 
@@ -287,6 +362,7 @@ results, err := sandbox.FileSystem.ReplaceInFiles(ctx, []string{"src/config.ts"}
 | `MogeniusNotFoundError`   | `FILE_NOT_FOUND`              | path does not exist                          |
 | `MogeniusConflictError`   | `FILE_EXISTS`, `FILE_NOT_EMPTY` | target exists; folder not empty without `recursive` |
 | `MogeniusForbiddenError`  | `FILE_PERMISSION_DENIED`      | the container user may not; or a viewer key writes |
+| `MogeniusError` (any kind) | `SFTP_UNAVAILABLE`           | an upload over SFTP found no way in ([Upload over SFTP](#upload-over-sftp)) |
 
 ---
 

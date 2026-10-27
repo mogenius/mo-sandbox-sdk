@@ -7,6 +7,7 @@ import {
 } from './errors.js';
 import { FileSystem } from './file-system.js';
 import { Process } from './process.js';
+import { SftpUploads } from './sftp.js';
 import { openTunnel } from './tunnel.js';
 import type { CodeLanguage, ExecuteResponse, SandboxInfo, SandboxState, Tunnel, TunnelOptions } from './types.js';
 
@@ -26,6 +27,7 @@ export class Sandbox {
   /** Files inside the sandbox. */
   readonly fs: FileSystem;
   private info: SandboxInfo;
+  private readonly sftp: SftpUploads;
 
   constructor(
     private readonly api: ApiClient,
@@ -34,7 +36,13 @@ export class Sandbox {
   ) {
     this.info = info;
     this.process = new Process(api, info.namespace, language, () => this.pod());
-    this.fs = new FileSystem(api, info.namespace, () => this.pod());
+    this.sftp = new SftpUploads(
+      api,
+      info.namespace,
+      () => this.pod(),
+      () => this.getWorkDir(),
+    );
+    this.fs = new FileSystem(api, info.namespace, () => this.pod(), this.sftp);
   }
 
   /*******************************************************************************************************************
@@ -151,12 +159,14 @@ export class Sandbox {
 
   /** Suspends the sandbox: the pod goes, the volume stays. */
   async stop(timeout: number = DEFAULT_WAIT_SECONDS): Promise<void> {
+    this.sftp.close();
     this.info = await this.api.post<SandboxInfo>(`${this.path()}/stop`);
     await this.waitUntilStopped(timeout);
   }
 
   /** Deletes the sandbox. With `ephemeral` (default) pod and storage go with it. */
   async delete(): Promise<void> {
+    this.sftp.close();
     this.info = await this.api.delete<SandboxInfo>(this.path());
   }
 

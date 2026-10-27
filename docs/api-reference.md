@@ -84,9 +84,9 @@ Go options: `WithSessionContainer`, `WithSessionEnv` *m*.
 | ------------------------------------------------- | --------------------------------------------------- | ------------------------------------- |
 | `listFiles(path?)`                                | `ListFiles(ctx, path)`                              | `FileInfo[]`                          |
 | `getFileDetails(path)`                            | `GetFileInfo(ctx, path)`                            | `FileInfo`                            |
-| `uploadFile(data, path)`                          | `UploadFile(ctx, []byte \| localPath, path)`        | —                                     |
-| `uploadFiles([{ source, destination }])`          | `UploadFiles(ctx, []types.FileUpload{ Source, Destination })` | `UploadResult[]` / `[]types.UploadResult` |
-| `uploadFileStream(source, path, { onProgress? })` *m* | `UploadFileStream(ctx, reader, path, WithUploadProgress(fn))` *m* | —                       |
+| `uploadFile(data, path, { transport? })`          | `UploadFile(ctx, []byte \| localPath, path, options.WithTransport(t))` | —                 |
+| `uploadFiles([{ source, destination }], { transport? })` | `UploadFiles(ctx, []types.FileUpload{ Source, Destination }, options.WithTransport(t))` | `UploadResult[]` / `[]types.UploadResult` |
+| `uploadFileStream(source, path, { onProgress?, transport? })` *m* | `UploadFileStream(ctx, reader, path, WithUploadProgress(fn), WithUploadTransport(t))` *m* | — |
 | `downloadFile(path)`                              | `DownloadFile(ctx, path, *localPath)`               | `Buffer` / `[]byte`                   |
 | `downloadFiles(paths)`                            | `DownloadFiles(ctx, paths)`                         | `{ path, data?, error? }[]` / `[]types.DownloadResult{ Path, Data, Error }` |
 | `downloadFileStream(path, { onProgress? })` *m*   | `DownloadFileStream(ctx, path, WithDownloadProgress(fn))` *m* | `ReadableStream` / `io.ReadCloser`, resumes |
@@ -100,6 +100,11 @@ Go options: `WithSessionContainer`, `WithSessionEnv` *m*.
 
 Progress: `UploadProgress { bytesSent }` / `BytesSent`; `DownloadProgress { bytesReceived, totalBytes }` /
 `BytesReceived`, `TotalBytes` (0 when the size is not announced).
+
+Transport *m*: `'http' | 'sftp'` / `options.TransportHTTP`, `options.TransportSFTP`; the client's default is
+`fileTransport` / `FileTransport` (`MOGENIUS_FILE_TRANSPORT`, `http`). An SFTP upload that finds no way in fails
+with error code `SFTP_UNAVAILABLE` (`ERROR_CODE_SFTP_UNAVAILABLE` / `mogenius.ErrorCodeSFTPUnavailable`), see
+[Upload over SFTP](files.md#upload-over-sftp).
 
 ## Tunnel *m*
 

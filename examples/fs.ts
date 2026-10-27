@@ -127,6 +127,31 @@ try {
     );
   });
 
+  await step('uploads over SFTP: a script a web firewall blocks, several files, a stream with progress', async () => {
+    // over HTTP, a line like this is what Cloudflare refused on mogenius.com
+    const script = `jq -n --arg p "$p" '{email:$e,password:$p}' | curl -s -X POST https://example.com -d @-\n`;
+    await sandbox.fs.uploadFile(script, `${root}/sftp/run.sh`, { transport: 'sftp' });
+    assert.equal((await sandbox.fs.downloadFile(`${root}/sftp/run.sh`)).toString(), script);
+
+    const results = await sandbox.fs.uploadFiles(
+      ['1', '2', '3'].map((n) => ({ source: `file ${n}\n`, destination: `${root}/sftp/many/${n}.txt` })),
+      { transport: 'sftp' },
+    );
+    assert.deepEqual(
+      results.map((result) => result.success),
+      [true, true, true],
+    );
+
+    let sent = 0;
+    const big = Buffer.alloc(1 << 20, 7);
+    await sandbox.fs.uploadFileStream(new Blob([big]).stream(), `${root}/sftp/big.bin`, {
+      transport: 'sftp',
+      onProgress: ({ bytesSent }) => (sent = bytesSent),
+    });
+    assert.equal(sent, big.length);
+    assert.ok((await sandbox.fs.downloadFile(`${root}/sftp/big.bin`)).equals(big), 'big.bin identical');
+  });
+
   await step('searchFiles by glob', async () => {
     const found = await sandbox.fs.searchFiles(root, '*.py');
     assert.equal(found.files.length, 1);
@@ -316,7 +341,17 @@ try {
         const err = await expectError(write, MogeniusForbiddenError);
         assert.equal(err.statusCode, 403, `${name}: status ${err.statusCode}`);
       }
+      // over SFTP the stream gateway decides: a viewer may not open the SSH gateway
+      const refused = await expectError(
+        () => viewer!.fs.uploadFile('x', `${root}/z.txt`, { transport: 'sftp' }),
+        MogeniusError,
+      );
+      console.log(`       viewer over SFTP: ${refused.name} ${refused.errorCode ?? ''}: ${refused.message}`);
       // nothing changed
+      assert.deepEqual(
+        (await sandbox.fs.listFiles(root)).map((entry) => entry.name).filter((name) => name === 'z.txt'),
+        [],
+      );
       assert.equal((await sandbox.fs.downloadFile(`${root}/viewer.txt`)).toString('utf8'), withNewline);
       await sandbox.fs.deleteFile(root, true);
     });
