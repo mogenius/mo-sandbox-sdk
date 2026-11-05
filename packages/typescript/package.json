@@ -1,6 +1,6 @@
 {
   "name": "@mogenius/sandbox",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "TypeScript SDK for mogenius sandboxes: lifecycle, commands, code runs and files inside sandbox pods on your own cluster",
   "license": "Apache-2.0",
   "type": "module",
