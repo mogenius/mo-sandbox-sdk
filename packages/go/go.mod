@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/coder/websocket v1.8.15
-	github.com/pkg/sftp v1.13.12
+	github.com/pkg/sftp v1.13.13
 	golang.org/x/crypto v0.59.0
 )
 
