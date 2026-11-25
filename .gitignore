@@ -8,3 +8,8 @@ coverage/
 !.env.example
 packages/typescript/docs/
 _work/
+
+# .NET
+bin/
+obj/
+TestResults/

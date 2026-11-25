@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Mogenius.Sandboxes/Mogenius.Sandboxes.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test/Mogenius.Sandboxes.Tests/Mogenius.Sandboxes.Tests.csproj" />
+  </Folder>
+</Solution>

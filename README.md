@@ -54,6 +54,7 @@ await mogenius.delete(sandbox);
 | -------------------------------------------- | ---------- | -------------------------------------------------------- |
 | [`@mogenius/sandbox`](packages/typescript)   | TypeScript | lifecycle, `executeCommand`, `codeRun` — in development  |
 | [`…/mo-sandbox-sdk/packages/go`](packages/go) | Go         | the TypeScript SDK's surface in Go — in development      |
+| [`Mogenius.Sandboxes`](packages/csharp)      | C#         | the TypeScript SDK's surface in .NET — in development    |
 | `mogenius-sandbox`                           | Python     | planned                                                  |
 | `openapi-specs/`                             | OpenAPI 3  | planned: generated clients for TypeScript, Python and Go |
 

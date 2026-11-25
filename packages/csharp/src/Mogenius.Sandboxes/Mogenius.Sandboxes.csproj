@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>Mogenius.Sandboxes</PackageId>
+    <Version>0.1.0</Version>
+    <Description>C# SDK for mogenius sandboxes: lifecycle, commands, code runs, sessions, files and tunnels inside sandbox pods on your own cluster.</Description>
+    <Authors>mogenius</Authors>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/mogenius/mo-sandbox-sdk</RepositoryUrl>
+    <PackageTags>mogenius;sandbox;agent-sandbox;kubernetes;ai-agents</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RootNamespace>Mogenius.Sandboxes</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SSH.NET" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- the same program as the Go SDK's code_run.py and the TypeScript PYTHON_BOOTSTRAP; a test keeps them identical -->
+    <EmbeddedResource Include="code_run.py" LogicalName="Mogenius.Sandboxes.code_run.py" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Mogenius.Sandboxes.Tests" />
+  </ItemGroup>
+</Project>
